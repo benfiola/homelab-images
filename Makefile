@@ -14,10 +14,11 @@ help:
 	@grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | grep -v '^\.' | awk -F: '{print $$1}' | sort -u
 
 .PHONY: install-tools
-install-tools: install-goreleaser install-svu
+install-tools:
 	@echo "All tools installed to $(bin)"
 
 .PHONY: install-goreleaser
+install-tools: install-goreleaser
 install-goreleaser:
 	@mkdir -p $(bin)
 	@echo "Installing goreleaser $(GORELEASER_VERSION)..."
@@ -27,6 +28,7 @@ install-goreleaser:
 	@echo "  ✓ goreleaser installed"
 
 .PHONY: install-svu
+install-tools: install-svu
 install-svu:
 	@mkdir -p $(bin)
 	@echo "Installing svu from fork (issue/297 branch)..."
@@ -40,11 +42,20 @@ install-svu:
 	@echo "  ✓ svu installed from fork"
 
 .PHONY: install-controller-gen
+install-tools: install-controller-gen
 install-controller-gen:
 	@mkdir -p $(bin)
 	@echo "Installing controller-gen $(CONTROLLER_GEN_VERSION)..."
 	@GOBIN="$(bin)" go install sigs.k8s.io/controller-tools/cmd/controller-gen@v$(CONTROLLER_GEN_VERSION)
 	@echo "  ✓ controller-gen installed"
+
+.PHONY: install-python
+install-tools: install-python
+install-python:
+	@echo "Installing python..."
+	@apt -y update
+	@apt -y install python3
+	@echo "  ✓ python installed"
 
 .PHONY: export-path
 export-path:

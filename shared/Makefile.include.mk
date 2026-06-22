@@ -13,20 +13,9 @@ list-targets:
 		| grep -E -v -e '^[^[:alnum:]]' -e '^$$@$$$$' \
 		| sed -e 's/^/\t/' -e 's/:$$$$//'
 
-.PHONY: next-version
-next-version:
-	@set -e; \
-	FLAGS=""; \
-	if [ -n "$(RC)" ]; then \
-		FLAGS="$${FLAGS} --prerelease rc.$(RC)"; \
-	fi; \
-	if [ -n "$(ALPHA)" ]; then \
-		FLAGS="$${FLAGS} --prerelease alpha.$(ALPHA)"; \
-	fi; \
-	if [ -n "$(METADATA)" ]; then \
-		FLAGS="$${FLAGS} --metadata $(METADATA)"; \
-	fi; \
-	svu next --tag.prefix="$(COMPONENT_NAME)/v" --tag.pattern="$(COMPONENT_NAME)/v*" --tag.output="v" --always=true $${FLAGS} 2>/dev/null || echo "v1.0.0"
+.PHONY: version
+version:
+	@COMPONENT_NAME="$(COMPONENT_NAME)" python3 $(dir $(lastword $(MAKEFILE_LIST)))/../.github/scripts/get-version.py
 
 .PHONY: pre-publish
 pre-publish:
