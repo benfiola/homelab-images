@@ -51,24 +51,20 @@ package-docker:
 
 .PHONY: package-helm
 package-helm:
-	@VERSION="$(VERSION)" \
-		go run $(REPO_ROOT)/scripts/main.go push-helm
-
-.PHONY: package
-package: package-docker package-helm
+	@echo "Helm chart packaged in build step"
 
 .PHONY: push-docker
 push-docker:
-	@VERSION="$(VERSION)" \
+	@VERSION="$(VERSION)" PLATFORMS="$(PLATFORMS)" \
 		go run $(REPO_ROOT)/scripts/main.go push-docker
 
-.PHONY: push-helm
-push-helm:
+.PHONY: publish-helm
+publish-helm:
 	@VERSION="$(VERSION)" \
 		go run $(REPO_ROOT)/scripts/main.go push-helm
 
 .PHONY: publish
-publish: push-docker push-helm
+publish: push-docker publish-helm
 
 .PHONY: github-release
 github-release:

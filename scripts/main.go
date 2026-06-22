@@ -594,8 +594,10 @@ func pushDocker() {
 	}
 
 	version := os.Getenv("VERSION")
-	if version == "" {
-		fmt.Fprintf(os.Stderr, "error: missing required environment variable: VERSION\n")
+	platforms := os.Getenv("PLATFORMS")
+
+	if version == "" || platforms == "" {
+		fmt.Fprintf(os.Stderr, "error: missing required environment variables: VERSION, PLATFORMS\n")
 		os.Exit(1)
 	}
 
@@ -609,8 +611,15 @@ func pushDocker() {
 	imageTag := fmt.Sprintf("%s/%s:%s", imageBase, component, version)
 
 	fmt.Printf("Pushing Docker image: %s\n", imageTag)
+	fmt.Printf("Platforms: %s\n", platforms)
 
-	cmd := exec.Command("docker", "push", imageTag)
+	cmd := exec.Command("docker", "buildx", "build",
+		"--platform", platforms,
+		"--push",
+		"--tag", imageTag,
+		"-f", "Dockerfile",
+		".",
+	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
