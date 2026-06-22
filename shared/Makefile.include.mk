@@ -54,6 +54,9 @@ package-helm:
 	@VERSION="$(VERSION)" BUILD_DIR="$(BUILD_DIR)" \
 		go run $(REPO_ROOT)/scripts/main.go package-helm
 
+.PHONY: package
+package: package-docker package-helm
+
 .PHONY: publish-docker
 publish-docker:
 	@VERSION="$(VERSION)" PLATFORMS="$(PLATFORMS)" \

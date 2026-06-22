@@ -366,7 +366,6 @@ func packageDocker() {
 
 	cmd := exec.Command("docker", "buildx", "build",
 		"--platform", platforms,
-		"--push",
 		"--tag", imageTag,
 		"-f", "Dockerfile",
 		".",
