@@ -11,17 +11,21 @@ def run(cmd):
     return result.stdout.strip()
 
 def get_all_components():
-    """Get all component directories."""
+    """Get all component directories (must have .svu.yml or .goreleaser.yaml)."""
     repo_root = Path(__file__).parent.parent
-    components = [
-        d.name for d in repo_root.iterdir()
-        if d.is_dir() and not d.name.startswith('.')
-    ]
+    excluded = {'.github', 'vendor', 'shared'}
+    components = []
+    for d in repo_root.iterdir():
+        if d.is_dir() and not d.name.startswith('.') and d.name not in excluded:
+            # Check if it's a valid component (has .svu.yml or .goreleaser.yaml)
+            if (d / '.svu.yml').exists() or (d / '.goreleaser.yaml').exists():
+                components.append(d.name)
     return sorted(components)
 
 def get_changed_components():
     """Detect changed components based on git diff."""
     ref = os.getenv('GITHUB_REF', 'refs/heads/main')
+    excluded = {'.github', 'vendor', 'shared', 'Makefile', 'README.md', '.gitignore'}
 
     if ref in ('refs/heads/main', 'refs/heads/dev'):
         # For main/dev, compare HEAD~1...HEAD
@@ -31,15 +35,22 @@ def get_changed_components():
         cmd = 'git diff --name-only origin/main...HEAD 2>/dev/null || echo ""'
 
     changed_files = run(cmd).split('\n')
+    repo_root = Path(__file__).parent.parent
 
     # Extract component names (first directory in path)
     components = set()
     for file_path in changed_files:
         if file_path:
             component = file_path.split('/')[0]
-            # Filter out dot directories
-            if not component.startswith('.'):
-                components.add(component)
+            # Filter out dot directories and excluded directories
+            if not component.startswith('.') and component not in excluded:
+                # Verify it's a valid component
+                comp_dir = repo_root / component
+                if comp_dir.is_dir() and (
+                    (comp_dir / '.svu.yml').exists() or
+                    (comp_dir / '.goreleaser.yaml').exists()
+                ):
+                    components.add(component)
 
     return sorted(components)
 
