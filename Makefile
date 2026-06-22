@@ -6,12 +6,20 @@ BIN ?= ./.bin
 bin := $(abspath $(BIN))
 
 OS := $(shell uname -s)
+OS_LOWER := $(shell echo $(OS) | tr A-Z a-z)
 ARCH := $(shell uname -m)
 ARCH_NORMALIZED := $(shell [ "$(ARCH)" = "aarch64" ] && echo "arm64" || echo "$(ARCH)")
 
-.PHONY: help
-help:
-	@grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | grep -v '^\.' | awk -F: '{print $$1}' | sort -u
+.DEFAULT_GOAL := list-targets
+
+.PHONY: list-targets
+list-targets:
+	@echo "available targets:"
+	@LC_ALL=C $(MAKE) -pRrq -f $(firstword $(MAKEFILE_LIST)) : 2>/dev/null \
+		| awk -v RS= -F: '/(^|\n)# Files(\n|$$$$)/,/(^|\n)# Finished Make data base/ {if ($$$$1 !~ "^[#.]") {print $$$$1}}' \
+		| sort \
+		| grep -E -v -e '^[^[:alnum:]]' -e '^$$@$$$$' \
+		| sed -e 's/^/\t/' -e 's/:$$$$//'
 
 .PHONY: install-tools
 install-tools:
@@ -44,14 +52,8 @@ install-tools: install-helm
 install-helm:
 	@mkdir -p $(bin)
 	@echo "Installing helm $(HELM_VERSION)..."
-	@cd /tmp && \
-	rm -rf helm-tmp && \
-	mkdir helm-tmp && \
-	cd helm-tmp && \
-	curl -sL "https://get.helm.sh/helm-v$(HELM_VERSION)-$(shell echo $(OS) | tr A-Z a-z)-$(ARCH_NORMALIZED).tar.gz" | tar xz && \
-	mv $(shell echo $(OS) | tr A-Z a-z)-$(ARCH_NORMALIZED)/helm $(bin)/helm && \
-	cd /tmp && \
-	rm -rf helm-tmp
+	@curl -sL "https://get.helm.sh/helm-v$(HELM_VERSION)-$(OS_LOWER)-$(ARCH_NORMALIZED).tar.gz" | \
+		tar xz --strip-components=1 -C $(bin) --wildcards "*/helm"
 	@echo "  ✓ helm installed"
 
 .PHONY: install-gh
@@ -59,14 +61,8 @@ install-tools: install-gh
 install-gh:
 	@mkdir -p $(bin)
 	@echo "Installing gh $(GH_VERSION)..."
-	@cd /tmp && \
-	rm -rf gh-tmp && \
-	mkdir gh-tmp && \
-	cd gh-tmp && \
-	curl -sL "https://github.com/cli/cli/releases/download/v$(GH_VERSION)/gh_$(GH_VERSION)_$(shell echo $(OS) | tr A-Z a-z)_$(ARCH_NORMALIZED).tar.gz" | tar xz && \
-	mv gh_$(GH_VERSION)_$(shell echo $(OS) | tr A-Z a-z)_$(ARCH_NORMALIZED)/bin/gh $(bin)/gh && \
-	cd /tmp && \
-	rm -rf gh-tmp
+	@curl -sL "https://github.com/cli/cli/releases/download/v$(GH_VERSION)/gh_$(GH_VERSION)_$(OS_LOWER)_$(ARCH_NORMALIZED).tar.gz" | \
+		tar xz --strip-components=2 -C $(bin) --wildcards "*/bin/gh"
 	@echo "  ✓ gh installed"
 
 .PHONY: export-path
