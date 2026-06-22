@@ -72,7 +72,3 @@ github-release:
 
 .PHONY: release
 release: github-release
-
-.PHONY: snapshot
-snapshot:
-	IMAGE_BASE="$(IMAGE_BASE)" goreleaser release --clean --snapshot
