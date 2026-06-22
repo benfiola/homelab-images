@@ -12,7 +12,7 @@ def run(cmd):
 
 def get_all_components():
     """Get all component directories (must have .goreleaser.yaml)."""
-    repo_root = Path(__file__).parent.parent.parent
+    repo_root = Path(__file__).parent.parent
     excluded = {'.github', 'vendor', 'shared'}
     components = []
     for d in repo_root.iterdir():
