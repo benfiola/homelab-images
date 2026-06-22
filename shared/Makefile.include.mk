@@ -47,24 +47,25 @@ build: pre-build build-go build-helm
 .PHONY: package-docker
 package-docker:
 	@VERSION="$(VERSION)" PLATFORMS="$(PLATFORMS)" \
-		go run $(REPO_ROOT)/scripts/main.go build-docker
+		go run $(REPO_ROOT)/scripts/main.go package-docker
 
 .PHONY: package-helm
 package-helm:
-	@echo "Helm chart packaged in build step"
+	@VERSION="$(VERSION)" BUILD_DIR="$(BUILD_DIR)" \
+		go run $(REPO_ROOT)/scripts/main.go package-helm
 
-.PHONY: push-docker
-push-docker:
+.PHONY: publish-docker
+publish-docker:
 	@VERSION="$(VERSION)" PLATFORMS="$(PLATFORMS)" \
-		go run $(REPO_ROOT)/scripts/main.go push-docker
+		go run $(REPO_ROOT)/scripts/main.go publish-docker
 
 .PHONY: publish-helm
 publish-helm:
 	@VERSION="$(VERSION)" \
-		go run $(REPO_ROOT)/scripts/main.go push-helm
+		go run $(REPO_ROOT)/scripts/main.go publish-helm
 
 .PHONY: publish
-publish: push-docker publish-helm
+publish: publish-docker publish-helm
 
 .PHONY: github-release
 github-release:

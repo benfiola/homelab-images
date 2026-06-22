@@ -29,14 +29,14 @@ func main() {
 		buildGo()
 	case "build-helm":
 		buildHelm()
-	case "build-docker":
-		buildDocker()
-	case "push-docker":
-		pushDocker()
-	case "push-helm":
-		pushHelm()
 	case "package-docker":
 		packageDocker()
+	case "publish-docker":
+		publishDocker()
+	case "package-helm":
+		packageHelm()
+	case "publish-helm":
+		publishHelm()
 	case "get-next-version":
 		getNextVersion()
 	case "get-current-version":
@@ -293,6 +293,49 @@ func buildHelm() {
 	fmt.Printf("✓ Built Helm chart in %s\n", outputDir)
 }
 
+func packageHelm() {
+	// Check if chart directory exists first
+	if _, err := os.Stat("chart"); err != nil {
+		return // no-op
+	}
+
+	version := os.Getenv("VERSION")
+	outputDir := os.Getenv("BUILD_DIR")
+
+	if version == "" || outputDir == "" {
+		fmt.Fprintf(os.Stderr, "error: missing required environment variables: VERSION, BUILD_DIR\n")
+		os.Exit(1)
+	}
+
+	component, err := deriveComponentName()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "error creating output dir: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Packaging Helm chart for %s (version: %s)...\n", component, version)
+
+	cmd := exec.Command("helm", "package", "chart",
+		"--app-version", version,
+		"--version", version,
+		"--destination", outputDir,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "error packaging helm chart: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("✓ Packaged Helm chart in %s\n", outputDir)
+}
+
 func packageDocker() {
 	// Check if Dockerfile exists first
 	if _, err := os.Stat("Dockerfile"); err != nil {
@@ -542,51 +585,7 @@ func quote(s []string) []string {
 	return result
 }
 
-func buildDocker() {
-	// Check if Dockerfile exists first
-	if _, err := os.Stat("Dockerfile"); err != nil {
-		fmt.Println("No Dockerfile found, skipping Docker build")
-		return
-	}
-
-	version := os.Getenv("VERSION")
-	platforms := os.Getenv("PLATFORMS")
-
-	if version == "" || platforms == "" {
-		fmt.Fprintf(os.Stderr, "error: missing required environment variables: VERSION, PLATFORMS\n")
-		os.Exit(1)
-	}
-
-	component, err := deriveComponentName()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-
-	imageBase := DefaultImageBase
-	imageTag := fmt.Sprintf("%s/%s:%s", imageBase, component, version)
-
-	fmt.Printf("Building Docker image: %s\n", imageTag)
-	fmt.Printf("Platforms: %s\n", platforms)
-
-	cmd := exec.Command("docker", "buildx", "build",
-		"--platform", platforms,
-		"--tag", imageTag,
-		"-f", "Dockerfile",
-		".",
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error building docker image: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("✓ Built %s\n", imageTag)
-}
-
-func pushDocker() {
+func publishDocker() {
 	// Check if Dockerfile exists first
 	if _, err := os.Stat("Dockerfile"); err != nil {
 		fmt.Println("No Dockerfile found, skipping Docker push")
@@ -631,7 +630,7 @@ func pushDocker() {
 	fmt.Printf("✓ Pushed %s\n", imageTag)
 }
 
-func pushHelm() {
+func publishHelm() {
 	// Check if chart exists first
 	if _, err := os.Stat("chart"); err != nil {
 		fmt.Println("No chart directory found, skipping Helm push")
