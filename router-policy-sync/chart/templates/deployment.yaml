@@ -13,10 +13,7 @@ spec:
         app.kubernetes.io/name: {{ include "router-policy-sync.name" . }}
     spec:
       containers:
-        - args:
-            - homelab-helper
-            - router-policy-sync
-          env:
+        - env:
             {{- if gt (int .Values.deployment.replicas) 1 }}
             - name: LEADER_ELECTION
               value: "true"
@@ -44,7 +41,7 @@ spec:
               port: health
             initialDelaySeconds: 15
             periodSeconds: 20
-          image: ghcr.io/benfiola/homelab-helper:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
+          image: ghcr.io/benfiola/homelab-images/router-policy-sync:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
           name: controller
           ports:
             - name: metrics

@@ -13,10 +13,7 @@ spec:
         app.kubernetes.io/name: {{ include "vault-push-secrets.name" . }}
     spec:
       containers:
-        - args:
-            - homelab-helper
-            - vault-push-secrets
-          env:
+        - env:
             - name: ENCRYPTION_KEY
               value: {{ required "config.encryptionKey is required" .Values.config.encryptionKey }}
             - name: GCS_CREDENTIALS
@@ -33,7 +30,7 @@ spec:
               value: {{ required "config.vaultAuthRole is required" .Values.config.vaultAuthRole }}
             - name: VAULT_SECRETS_MOUNT
               value: {{ required "config.vaultSecretsMount is required" .Values.config.vaultSecretsMount }}
-          image: ghcr.io/benfiola/homelab-helper:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
+          image: ghcr.io/benfiola/homelab-images/vault-push-secrets:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
           livenessProbe:
             exec:
               command:

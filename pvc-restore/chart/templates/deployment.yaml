@@ -13,10 +13,7 @@ spec:
         app.kubernetes.io/name: {{ include "pvc-restore.name" . }}
     spec:
       containers:
-        - args:
-            - homelab-helper
-            - pvc-restore
-          {{- $envVars := list }}
+        - {{- $envVars := list }}
           {{- if .Values.config.cacheStorageClass }}
             {{- $envVars = append $envVars (dict "name" "CACHE_STORAGE_CLASS" "value" .Values.config.cacheStorageClass) }}
           {{- end }}
@@ -36,7 +33,7 @@ spec:
               port: health
             initialDelaySeconds: 15
             periodSeconds: 20
-          image: ghcr.io/benfiola/homelab-helper:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
+          image: ghcr.io/benfiola/homelab-images/pvc-restore:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
           name: controller
           ports:
             - name: metrics

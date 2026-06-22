@@ -13,10 +13,7 @@ spec:
         app.kubernetes.io/name: {{ include "dynamic-dns.name" . }}
     spec:
       containers:
-        - args:
-            - homelab-helper
-            - dynamic-dns
-          env:
+        - env:
             - name: CLOUDFLARE_API_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -36,7 +33,7 @@ spec:
             - name: LOG_LEVEL
               value: {{ .Values.config.logLevel }}
             {{- end }}
-          image: ghcr.io/benfiola/homelab-helper:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
+          image: ghcr.io/benfiola/homelab-images/dynamic-dns:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
           livenessProbe:
             exec:
               command:

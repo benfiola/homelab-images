@@ -13,10 +13,7 @@ spec:
         app.kubernetes.io/name: {{ include "bucket-sync.name" . }}
     spec:
       containers:
-        - args:
-            - homelab-helper
-            - bucket-sync
-          {{- $envVars := list }}
+        - {{- $envVars := list }}
           {{- if gt (int .Values.deployment.replicas) 1 }}
             {{- $envVars = append $envVars (dict "name" "LEADER_ELECTION" "value" "true") }}
           {{- end }}
@@ -35,7 +32,7 @@ spec:
               port: health
             initialDelaySeconds: 15
             periodSeconds: 20
-          image: ghcr.io/benfiola/homelab-helper:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
+          image: ghcr.io/benfiola/homelab-images/bucket-sync:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
           name: controller
           ports:
             - name: metrics

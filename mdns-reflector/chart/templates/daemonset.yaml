@@ -13,10 +13,7 @@ spec:
     spec:
       hostNetwork: {{ .Values.daemonSet.hostNetwork }}
       containers:
-        - args:
-            - homelab-helper
-            - mdns-reflector
-          env:
+        - env:
             {{- if .Values.config.sourceInterfaces }}
             - name: SOURCE_INTERFACES
               value: {{ .Values.config.sourceInterfaces | quote }}
@@ -33,13 +30,13 @@ spec:
             - name: LOG_LEVEL
               value: {{ .Values.config.logLevel }}
             {{- end }}
-          image: ghcr.io/benfiola/homelab-helper:{{ .Values.daemonSet.image.tag | default (trimPrefix "v" .Chart.Version) }}
+          image: ghcr.io/benfiola/homelab-images/mdns-reflector:{{ .Values.daemonSet.image.tag | default (trimPrefix "v" .Chart.Version) }}
           livenessProbe:
             exec:
               command:
                 - /bin/sh
                 - -c
-                - pgrep -f "homelab-helper mdns-reflector" > /dev/null
+                - pgrep -f "mdns-reflector" > /dev/null
             initialDelaySeconds: 10
             periodSeconds: 30
             failureThreshold: 3
@@ -49,7 +46,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - pgrep -f "homelab-helper mdns-reflector" > /dev/null
+                - pgrep -f "mdns-reflector" > /dev/null
             initialDelaySeconds: 5
             periodSeconds: 10
           {{- if .Values.daemonSet.resources }}
