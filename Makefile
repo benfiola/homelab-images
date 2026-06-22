@@ -53,8 +53,9 @@ install-controller-gen:
 install-tools: install-python
 install-python:
 	@echo "Installing python..."
-	@apt -y update
-	@apt -y install python3
+	@if [ "$$(id -u)" -ne 0 ]; then SUDO=sudo; else SUDO=; fi && \
+	$$SUDO apt -y update && \
+	$$SUDO apt -y install python3
 	@echo "  ✓ python installed"
 
 .PHONY: export-path
