@@ -716,7 +716,7 @@ func createGithubRelease() {
 	isPrerelease := strings.ContainsAny(version, "-+")
 
 	// Get previous tag
-	tagPrefix := fmt.Sprintf("%s/v", component)
+	tagPrefix := fmt.Sprintf("%s/", component)
 	listCmd := exec.Command("git", "tag", "-l", fmt.Sprintf("%s*", tagPrefix), "--sort=-version:refname")
 	tagsOutput, err := listCmd.Output()
 	if err != nil {
@@ -752,10 +752,10 @@ func createGithubRelease() {
 
 	// Build release notes with comparison link
 	var releaseNotes strings.Builder
-	releaseNotes.WriteString(fmt.Sprintf("## [%s](https://github.com/benfiola/homelab-images/compare/%s...%s%s) (%s)\n\n",
-		version, previousTag, tagPrefix, version, time.Now().Format("2006-01-02")))
-	releaseNotes.WriteString("### Changes\n\n")
-	releaseNotes.WriteString(string(changelogOutput))
+	fmt.Fprintf(&releaseNotes, "## [%s](https://github.com/benfiola/homelab-images/compare/%s...%s) (%s)\n\n",
+	version, previousTag, currentTag, time.Now().Format("2006-01-02"))
+	fmt.Fprintf(&releaseNotes, "### Changes\n\n")
+	fmt.Fprintf(&releaseNotes, "%s", string(changelogOutput))
 
 	// Create release with gh CLI
 	ghArgs := []string{
