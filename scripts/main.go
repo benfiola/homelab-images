@@ -34,14 +34,20 @@ func parseSemver(v string) map[string]string {
 	return result
 }
 
+// helmVersion removes a leading 'v' from a version string.
+func helmVersion(version string) string {
+	return strings.TrimPrefix(version, "v")
+}
+
 // imageTagVersion converts a semver string to a valid OCI image tag by replacing
 // the '+' build-metadata separator (not allowed in OCI tags) with '-'.
+// The returned tag has no leading 'v' (Docker convention).
 func imageTagVersion(version string) (string, error) {
 	p := parseSemver(version)
 	if p == nil {
 		return "", fmt.Errorf("version %q does not match semver", version)
 	}
-	v := fmt.Sprintf("v%s.%s.%s", p["major"], p["minor"], p["patch"])
+	v := fmt.Sprintf("%s.%s.%s", p["major"], p["minor"], p["patch"])
 	if p["prerelease"] != "" {
 		v += "-" + p["prerelease"]
 	}
@@ -64,8 +70,6 @@ func main() {
 		generateK8sController()
 	case "build-go":
 		buildGo()
-	case "build-helm":
-		buildHelm()
 	case "package-docker":
 		packageDocker()
 	case "publish-docker":
@@ -285,49 +289,6 @@ func generateK8sController() {
 	fmt.Println("✓ Code generation complete")
 }
 
-func buildHelm() {
-	// Check if chart directory exists first
-	if _, err := os.Stat("chart"); err != nil {
-		return // no-op
-	}
-
-	version := os.Getenv("VERSION")
-	outputDir := os.Getenv("BUILD_DIR")
-
-	if version == "" || outputDir == "" {
-		fmt.Fprintf(os.Stderr, "error: missing required environment variables: VERSION, BUILD_DIR\n")
-		os.Exit(1)
-	}
-
-	component, err := deriveComponentName()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "error creating output dir: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Building Helm chart for %s (version: %s)...\n", component, version)
-
-	cmd := exec.Command("helm", "package", "chart",
-		"--app-version", version,
-		"--version", version,
-		"--destination", outputDir,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error building helm chart: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("✓ Built Helm chart in %s\n", outputDir)
-}
-
 func packageHelm() {
 	// Check if chart directory exists first
 	if _, err := os.Stat("chart"); err != nil {
@@ -355,9 +316,10 @@ func packageHelm() {
 
 	fmt.Printf("Packaging Helm chart for %s (version: %s)...\n", component, version)
 
+	bareVer := helmVersion(version)
 	cmd := exec.Command("helm", "package", "chart",
-		"--app-version", version,
-		"--version", version,
+		"--app-version", bareVer,
+		"--version", bareVer,
 		"--destination", outputDir,
 	)
 	cmd.Stdout = os.Stdout
@@ -706,7 +668,8 @@ func publishHelm() {
 		os.Exit(1)
 	}
 
-	chartFile := filepath.Join(".build", fmt.Sprintf("%s-%s.tgz", component, version))
+	bareVer := helmVersion(version)
+	chartFile := filepath.Join(".build", fmt.Sprintf("%s-%s.tgz", component, bareVer))
 
 	// Check if chart file was built
 	if _, err := os.Stat(chartFile); err != nil {
@@ -716,7 +679,7 @@ func publishHelm() {
 
 	imageBase := DefaultImageBase
 	ociRef := fmt.Sprintf("oci://%s/charts", imageBase)
-	chartRef := fmt.Sprintf("%s/%s:%s", ociRef, component, version)
+	chartRef := fmt.Sprintf("%s/%s:%s", ociRef, component, bareVer)
 
 	fmt.Printf("Pushing Helm chart: %s\n", chartRef)
 
@@ -818,7 +781,7 @@ func createGithubRelease() {
 
 	if _, err := os.Stat("chart"); err == nil {
 		fmt.Fprintf(&releaseNotes, "### Helm Chart\n\n")
-		helmPull := fmt.Sprintf("helm pull oci://%s/charts/%s --version %s", DefaultImageBase, component, version)
+		helmPull := fmt.Sprintf("helm pull oci://%s/charts/%s --version %s", DefaultImageBase, component, helmVersion(version))
 		if isPrerelease {
 			helmPull += " --devel"
 		}

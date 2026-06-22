@@ -25,11 +25,6 @@ build-go:
 	@VERSION="$(VERSION)" BUILD_DIR="$(BUILD_DIR)" PLATFORMS="$(PLATFORMS)" \
 		go run $(REPO_ROOT)/scripts/main.go build-go
 
-.PHONY: build-helm
-build-helm:
-	@VERSION="$(VERSION)" BUILD_DIR="$(BUILD_DIR)" \
-		go run $(REPO_ROOT)/scripts/main.go build-helm
-
 .PHONY: generate-k8s-controller
 generate-k8s-controller:
 	@go run $(REPO_ROOT)/scripts/main.go generate-k8s-controller
@@ -38,7 +33,7 @@ generate-k8s-controller:
 pre-build: generate-k8s-controller
 
 .PHONY: build
-build: pre-build build-go build-helm
+build: pre-build build-go
 
 .PHONY: package-docker
 package-docker:

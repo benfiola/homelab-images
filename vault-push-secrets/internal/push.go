@@ -241,11 +241,15 @@ func (p *Pusher) ExportSecrets(ctx context.Context) (*VaultSecrets, error) {
 	secrets := map[string]any{}
 	for _, app := range apps {
 		response, err := p.Vault.Secrets.KvV2Read(ctx, app, vault.WithMountPath(p.VaultSecretsMount))
-		if err != nil {
+		if err != nil && !vault.IsErrorStatus(err, 404) {
 			logger.Error("failed to read secret", "app", app, "error", err)
 			return nil, err
 		}
-		secrets[app] = response.Data.Data
+		data := map[string]any{}
+		if err == nil {
+			data = response.Data.Data
+		}
+		secrets[app] = data
 	}
 
 	response, err = p.Vault.Auth.KubernetesListAuthRoles(ctx, vault.WithMountPath(p.VaultAuthMount))
