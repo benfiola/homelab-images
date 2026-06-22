@@ -55,6 +55,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.components != '[]'
     strategy:
+      fail-fast: false
       matrix:
         component: ${{ fromJson(needs.detect-changes.outputs.components) }}
     concurrency:
