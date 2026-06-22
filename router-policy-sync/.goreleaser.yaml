@@ -1,0 +1,30 @@
+version: 2
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - main: ./cmd/main.go
+    binary: router-policy-sync
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/benfiola/homelab-images/router-policy-sync/internal/routerpolicysync.Version={{ .Version }}
+
+dockers:
+  - image_templates:
+      - 'ghcr.io/benfiola/homelab-images/router-policy-sync:{{ .Version }}'
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - '--label=org.opencontainers.image.version={{ .Version }}'
+
+release:
+  github:
+    owner: benfiola
+    name: homelab-images
+  name_template: 'router-policy-sync-{{ .Version }}'

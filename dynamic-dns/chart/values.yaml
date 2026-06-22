@@ -1,0 +1,13 @@
+config:
+  cloudflareApiTokenKey: ""
+  cloudflareApiTokenSecret: ""
+  cloudflareZones: []
+  interval: ""
+  logLevel: ""
+  logFormat: ""
+deployment:
+  image:
+    tag: ""
+  resources: null
+serviceAccount:
+  name: ""

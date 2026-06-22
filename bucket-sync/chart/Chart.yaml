@@ -1,0 +1,6 @@
+apiVersion: v2
+name: bucket-sync
+description: A helm chart that deploys a controller used to sync two buckets with data.
+type: application
+version: 0.0.0
+appVersion: "0.0.0"

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: router-policy-sync
+description: A helm chart that deploys a controller used to dynamically sync network policies with router firewall rules.
+type: application
+version: 0.0.0
+appVersion: "0.0.0"

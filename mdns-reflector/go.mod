@@ -1,0 +1,10 @@
+module github.com/benfiola/homelab-images/mdns-reflector
+
+go 1.25.8
+
+require (
+	github.com/benfiola/homelab-images/shared v0.0.0
+	github.com/urfave/cli/v3 v3.7.0
+)
+
+replace github.com/benfiola/homelab-images/shared => ../shared

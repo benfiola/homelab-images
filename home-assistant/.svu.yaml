@@ -1,0 +1,5 @@
+tag:
+  prefix: home-assistant/v
+  pattern: home-assistant/v*
+  output: v
+always: true

@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+mkdir -p /config/custom_components
+cp -r /custom_components/. /config/custom_components/

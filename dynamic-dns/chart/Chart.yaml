@@ -1,0 +1,6 @@
+apiVersion: v2
+name: dynamic-dns
+description: A helm chart that deploys a workload capable of syncing Cloudflare DNS A records with your current public IP address.
+type: application
+version: 0.0.0
+appVersion: "0.0.0"

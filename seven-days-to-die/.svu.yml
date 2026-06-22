@@ -1,0 +1,5 @@
+tag:
+  prefix: "seven-days-to-die/v"
+  pattern: "seven-days-to-die/v*"
+  output: v
+always: true

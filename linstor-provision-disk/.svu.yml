@@ -1,0 +1,5 @@
+tag:
+  prefix: "linstor-provision-disk/v"
+  pattern: "linstor-provision-disk/*"
+  output: v
+always: true

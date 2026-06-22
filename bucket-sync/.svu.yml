@@ -1,0 +1,5 @@
+tag:
+  prefix: "bucket-sync/v"
+  pattern: "bucket-sync/*"
+  output: v
+always: true

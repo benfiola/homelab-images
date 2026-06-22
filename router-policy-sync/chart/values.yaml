@@ -1,0 +1,12 @@
+config:
+  mikrotikBaseUrl: ""
+  mikrotikPasswordKey: ""
+  mikrotikPasswordSecret: ""
+  mikrotikUsername: ""
+  reservedCIDRs: []
+  syncInterval: ""
+deployment:
+  image:
+    tag: ""
+  replicas: 1
+  resources: null

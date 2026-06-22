@@ -1,0 +1,5 @@
+tag:
+  prefix: "vault-push-secrets/v"
+  pattern: "vault-push-secrets/*"
+  output: v
+always: true

@@ -1,0 +1,5 @@
+tag:
+  prefix: "router-policy-sync/v"
+  pattern: "router-policy-sync/*"
+  output: v
+always: true

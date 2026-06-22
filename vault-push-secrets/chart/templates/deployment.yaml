@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vault-push-secrets.name" . }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "vault-push-secrets.name" . }}
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "vault-push-secrets.name" . }}
+    spec:
+      containers:
+        - args:
+            - homelab-helper
+            - vault-push-secrets
+          env:
+            - name: ENCRYPTION_KEY
+              value: {{ required "config.encryptionKey is required" .Values.config.encryptionKey }}
+            - name: GCS_CREDENTIALS
+              value: /storage-secrets/credentials
+            - name: GCS_DESTINATION
+              value: {{ required "config.gcsDestination is required" .Values.config.gcsDestination }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel }}
+            - name: VAULT_ADDR
+              value: {{ required "config.vaultAddr is required" .Values.config.vaultAddr }}
+            - name: VAULT_AUTH_MOUNT
+              value: {{ required "config.vaultAuthMount is required" .Values.config.vaultAuthMount }}
+            - name: VAULT_AUTH_ROLE
+              value: {{ required "config.vaultAuthRole is required" .Values.config.vaultAuthRole }}
+            - name: VAULT_SECRETS_MOUNT
+              value: {{ required "config.vaultSecretsMount is required" .Values.config.vaultSecretsMount }}
+          image: ghcr.io/benfiola/homelab-helper:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep -f "vault-push-secrets" > /dev/null
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          name: pusher
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep -f "vault-push-secrets" > /dev/null
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- if .Values.deployment.resources }}
+          resources: {{ .Values.deployment.resources | toYaml | nindent 10 }}
+          {{- end }}          
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            runAsUser: 1000
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+          volumeMounts:
+            - name: storage-secrets
+              mountPath: /storage-secrets
+      serviceAccountName: {{ include "vault-push-secrets.serviceAccountName" . }}
+      volumes:
+        - name: storage-secrets
+          secret:
+            secretName: {{ required "config.gcsCredentialsSecret is required" .Values.config.gcsCredentialsSecret  }}
+            items:
+              - key: {{ required "config.gcsCredentialsKey is required" .Values.config.gcsCredentialsKey  }}
+                path: credentials

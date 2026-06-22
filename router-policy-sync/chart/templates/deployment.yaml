@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "router-policy-sync.name" . }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "router-policy-sync.name" . }}
+  replicas: {{ int .Values.deployment.replicas }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "router-policy-sync.name" . }}
+    spec:
+      containers:
+        - args:
+            - homelab-helper
+            - router-policy-sync
+          env:
+            {{- if gt (int .Values.deployment.replicas) 1 }}
+            - name: LEADER_ELECTION
+              value: "true"
+            {{- end }}
+            - name: MIKROTIK_BASE_URL
+              value: {{ required "config.mikrotikBaseUrl is required" .Values.config.mikrotikBaseUrl }}
+            - name: MIKROTIK_USERNAME
+              value: {{ required "config.mikrotikUsername is required" .Values.config.mikrotikUsername }}
+            - name: MIKROTIK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "config.mikrotikPasswordSecret is required" .Values.config.mikrotikPasswordSecret }}
+                  key: {{ required "config.mikrotikPasswordKey is required" .Values.config.mikrotikPasswordKey }}
+            {{- if .Values.config.reservedCIDRs }}
+            - name: RESERVED_CIDRS
+              value: {{ .Values.config.reservedCIDRs | join "," | quote }}
+            {{- end }}
+            {{- if .Values.config.syncInterval }}
+            - name: SYNC_INTERVAL
+              value: {{ .Values.config.syncInterval }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          image: ghcr.io/benfiola/homelab-helper:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
+          name: controller
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- if .Values.deployment.resources }}
+          resources: {{ .Values.deployment.resources | toYaml | nindent 10 }}
+          {{- end }}          
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            runAsUser: 1000
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+      serviceAccountName: {{ include "router-policy-sync.name" . }}

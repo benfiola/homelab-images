@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dynamic-dns.name" . }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "dynamic-dns.name" . }}
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "dynamic-dns.name" . }}
+    spec:
+      containers:
+        - args:
+            - homelab-helper
+            - dynamic-dns
+          env:
+            - name: CLOUDFLARE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "config.cloudflareApiTokenSecret is required" .Values.config.cloudflareApiTokenSecret }}
+                  key: {{ required "config.cloudflareApiTokenKey is required" .Values.config.cloudflareApiTokenKey }}
+            - name: CLOUDFLARE_ZONES
+              value: {{ .Values.config.cloudflareZones | mustToJson | quote }}
+            {{- if .Values.config.interval }}
+            - name: INTERVAL
+              value: {{ .Values.config.interval }}
+            {{- end }}
+            {{- if .Values.config.logFormat }}
+            - name: LOG_FORMAT
+              value: {{ .Values.config.logFormat }}
+            {{- end }}
+            {{- if .Values.config.logLevel }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel }}
+            {{- end }}
+          image: ghcr.io/benfiola/homelab-helper:{{ .Values.deployment.image.tag | default (trimPrefix "v" .Chart.Version) }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep -f "dynamic-dns" > /dev/null
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          name: client
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep -f "dynamic-dns" > /dev/null
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- if .Values.deployment.resources }}
+          resources: {{ .Values.deployment.resources | toYaml | nindent 10 }}
+          {{- end }}          
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            runAsUser: 1000
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+      serviceAccountName: {{ include "dynamic-dns.serviceAccountName" . }}

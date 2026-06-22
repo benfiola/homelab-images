@@ -1,0 +1,25 @@
+version: 2
+
+project_name: home-assistant
+
+builds:
+  - skip: true
+
+dockers_v2:
+  - dockerfile: Dockerfile
+    extra_files:
+      - rootfs
+    images:
+      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/homelab-images/home-assistant
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    tags:
+      - "{{.Version}}"
+
+release:
+  footer: |
+    **Docker Image:** `ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/homelab-images/home-assistant:{{.Version}}`
+
+changelog:
+  use: github-native

@@ -1,0 +1,16 @@
+config:
+  encryptionKey: ""
+  gcsCredentialsKey: ""
+  gcsCredentialsSecret: ""
+  gcsDestination: ""
+  logLevel: "info"
+  vaultAuthMount: ""
+  vaultAuthRole: ""
+  vaultSecretsMount: ""
+  vaultAddr: ""
+deployment:
+  image:
+    tag: ""
+  resources: null
+serviceAccount:
+  name: ""

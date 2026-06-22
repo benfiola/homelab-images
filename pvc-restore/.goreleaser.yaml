@@ -1,0 +1,30 @@
+version: 2
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - main: ./cmd/main.go
+    binary: pvc-restore
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/benfiola/homelab-images/pvc-restore/internal/pvcrestore.Version={{ .Version }}
+
+dockers:
+  - image_templates:
+      - 'ghcr.io/benfiola/homelab-images/pvc-restore:{{ .Version }}'
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - '--label=org.opencontainers.image.version={{ .Version }}'
+
+release:
+  github:
+    owner: benfiola
+    name: homelab-images
+  name_template: 'pvc-restore-{{ .Version }}'

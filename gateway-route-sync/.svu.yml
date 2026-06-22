@@ -1,0 +1,5 @@
+tag:
+  prefix: "gateway-route-sync/v"
+  pattern: "gateway-route-sync/*"
+  output: v
+always: true

@@ -1,0 +1,5 @@
+tag:
+  prefix: "single-player-tarkov/v"
+  pattern: "single-player-tarkov/v*"
+  output: v
+always: true

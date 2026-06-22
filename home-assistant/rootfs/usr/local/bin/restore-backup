@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+if [ -z "${HA_BACKUP_PATH}" ]; then
+    exit 0
+fi
+
+if [ ! -f "${HA_BACKUP_PATH}" ]; then
+    printf 'restore-backup: %s not found, skipping\n' "${HA_BACKUP_PATH}"
+    exit 0
+fi
+
+printf 'restore-backup: restoring from %s\n' "${HA_BACKUP_PATH}"
+mkdir -p /config
+tar xf "${HA_BACKUP_PATH}" -O homeassistant.tar.gz | tar xz --strip-components=1 -C /config
+printf 'restore-backup: done\n'

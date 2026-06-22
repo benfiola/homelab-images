@@ -1,0 +1,12 @@
+config:
+  sourceInterfaces: ""
+  destInterfaces: ""
+  logLevel: ""
+  logFormat: ""
+daemonSet:
+  image:
+    tag: ""
+  resources: null
+  hostNetwork: false
+serviceAccount:
+  name: ""

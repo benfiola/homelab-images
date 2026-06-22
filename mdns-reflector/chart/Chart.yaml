@@ -1,0 +1,6 @@
+apiVersion: v2
+name: mdns-reflector
+description: A helm chart that deploys a workload capable of reflecting mDNS broadcasts from one set of network interfaces to another.
+type: application
+version: 0.0.0
+appVersion: "0.0.0"
