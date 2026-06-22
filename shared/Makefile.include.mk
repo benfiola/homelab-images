@@ -11,7 +11,7 @@ list-targets:
 		| awk -v RS= -F: '/(^|\n)# Files(\n|$$$$)/,/(^|\n)# Finished Make data base/ {if ($$$$1 !~ "^[#.]") {print $$$$1}}' \
 		| sort \
 		| grep -E -v -e '^[^[:alnum:]]' -e '^$$@$$$$' \
-		| sed -e 's/^/\t/' -e 's/:$$$$//'
+		| sed -e 's/^/\t/'
 
 .PHONY: current-version
 current-version:

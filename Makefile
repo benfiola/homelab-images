@@ -5,10 +5,17 @@ GH_VERSION ?= 2.95.0
 BIN ?= ./.bin
 bin := $(abspath $(BIN))
 
-OS := $(shell uname -s)
+OS ?= $(shell uname -s)
 OS_LOWER := $(shell echo $(OS) | tr A-Z a-z)
-ARCH := $(shell uname -m)
-ARCH_NORMALIZED := $(shell [ "$(ARCH)" = "aarch64" ] && echo "arm64" || echo "$(ARCH)")
+ARCH ?= $(shell uname -m)
+
+ifeq ($(ARCH),aarch64)
+	ARCH_NORMALIZED := arm64
+else ifeq ($(ARCH),x86_64)
+	ARCH_NORMALIZED := amd64
+else
+	ARCH_NORMALIZED := $(ARCH)
+endif
 
 .DEFAULT_GOAL := list-targets
 
@@ -19,7 +26,7 @@ list-targets:
 		| awk -v RS= -F: '/(^|\n)# Files(\n|$$$$)/,/(^|\n)# Finished Make data base/ {if ($$$$1 !~ "^[#.]") {print $$$$1}}' \
 		| sort \
 		| grep -E -v -e '^[^[:alnum:]]' -e '^$$@$$$$' \
-		| sed -e 's/^/\t/' -e 's/:$$$$//'
+		| sed -e 's/^/\t/'
 
 .PHONY: install-tools
 install-tools:
