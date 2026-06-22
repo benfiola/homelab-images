@@ -1,6 +1,6 @@
-COMPONENT_DIR := $(notdir $(CURDIR))
-COMPONENT_NAME := $(basename $(COMPONENT_DIR))
-IMAGE_BASE := ghcr.io/benfiola/homelab-images
+PLATFORMS ?= linux/amd64,linux/arm64
+BUILD_DIR ?= .build
+REPO_ROOT := $(shell cd $(dir $(lastword $(MAKEFILE_LIST)))/.. && pwd)
 
 .DEFAULT_GOAL := list-targets
 
@@ -13,17 +13,66 @@ list-targets:
 		| grep -E -v -e '^[^[:alnum:]]' -e '^$$@$$$$' \
 		| sed -e 's/^/\t/' -e 's/:$$$$//'
 
-.PHONY: version
-version:
-	@COMPONENT_NAME="$(COMPONENT_NAME)" python3 $(dir $(lastword $(MAKEFILE_LIST)))/../scripts/get-version.py
+.PHONY: current-version
+current-version:
+	@go run $(REPO_ROOT)/scripts/main.go get-current-version
 
-.PHONY: pre-publish
-pre-publish:
+.PHONY: next-version
+next-version:
+	@RC="$(RC)" ALPHA="$(ALPHA)" METADATA="$(METADATA)" \
+		go run $(REPO_ROOT)/scripts/main.go get-next-version
+
+.PHONY: build-go
+build-go:
+	@VERSION="$(shell make version)" BUILD_DIR="$(BUILD_DIR)" PLATFORMS="$(PLATFORMS)" \
+		go run $(REPO_ROOT)/scripts/main.go build-go
+
+.PHONY: build-helm
+build-helm:
+	@VERSION="$(shell make version)" BUILD_DIR="$(BUILD_DIR)" \
+		go run $(REPO_ROOT)/scripts/main.go build-helm
+
+.PHONY: generate
+generate:
+	@go run $(REPO_ROOT)/scripts/main.go generate
+
+.PHONY: pre-build
+pre-build: generate
+
+.PHONY: build
+build: pre-build build-go build-helm
+
+.PHONY: package-docker
+package-docker:
+	@VERSION="$(shell make version)" PLATFORMS="$(PLATFORMS)" \
+		go run $(REPO_ROOT)/scripts/main.go build-docker
+
+.PHONY: package-helm
+package-helm:
+	@VERSION="$(shell make version)" \
+		go run $(REPO_ROOT)/scripts/main.go push-helm
+
+.PHONY: push-docker
+push-docker:
+	@VERSION="$(shell make version)" \
+		go run $(REPO_ROOT)/scripts/main.go push-docker
+
+.PHONY: push-helm
+push-helm:
+	@VERSION="$(shell make version)" \
+		go run $(REPO_ROOT)/scripts/main.go push-helm
+
+.PHONY: publish
+publish: push-docker push-helm
+
+.PHONY: github-release
+github-release:
+	@VERSION="$(shell make version)" \
+		go run $(REPO_ROOT)/scripts/main.go create-github-release
+
+.PHONY: release
+release: github-release
 
 .PHONY: snapshot
 snapshot:
 	IMAGE_BASE="$(IMAGE_BASE)" goreleaser release --clean --snapshot
-
-.PHONY: publish
-publish:
-	IMAGE_BASE="$(IMAGE_BASE)" goreleaser release --clean

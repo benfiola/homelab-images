@@ -1,8 +1,7 @@
 FROM debian:bookworm-slim
 
 ARG TARGETARCH
-ARG TARGETPLATFORM
 
-COPY $TARGETPLATFORM/vault-unseal /usr/bin/vault-unseal
+COPY .build/vault-unseal_linux_${TARGETARCH} /usr/bin/vault-unseal
 
 ENTRYPOINT ["vault-unseal"]

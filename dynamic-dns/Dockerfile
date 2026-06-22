@@ -1,8 +1,7 @@
 FROM debian:bookworm-slim
 
 ARG TARGETARCH
-ARG TARGETPLATFORM
 
-COPY $TARGETPLATFORM/dynamic-dns /usr/bin/dynamic-dns
+COPY .build/dynamic-dns_linux_${TARGETARCH} /usr/bin/dynamic-dns
 
 ENTRYPOINT ["dynamic-dns"]

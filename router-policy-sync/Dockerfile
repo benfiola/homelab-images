@@ -1,8 +1,7 @@
 FROM debian:bookworm-slim
 
 ARG TARGETARCH
-ARG TARGETPLATFORM
 
-COPY $TARGETPLATFORM/router-policy-sync /usr/bin/router-policy-sync
+COPY .build/router-policy-sync_linux_${TARGETARCH} /usr/bin/router-policy-sync
 
 ENTRYPOINT ["router-policy-sync"]

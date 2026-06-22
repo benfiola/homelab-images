@@ -1,8 +1,7 @@
 FROM debian:bookworm-slim
 
 ARG TARGETARCH
-ARG TARGETPLATFORM
 
-COPY $TARGETPLATFORM/vault-push-secrets /usr/bin/vault-push-secrets
+COPY .build/vault-push-secrets_linux_${TARGETARCH} /usr/bin/vault-push-secrets
 
 ENTRYPOINT ["vault-push-secrets"]

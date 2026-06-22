@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"os"
 
 	"github.com/benfiola/homelab-images/mdns-reflector/internal"
 	"github.com/benfiola/homelab-images/shared/pkg/cliutil"
@@ -26,10 +25,15 @@ func main() {
 				},
 			},
 			Action: func(ctx context.Context, c *cli.Command) error {
-				return internal.New(&internal.Opts{
+				reflector, err := internal.New(&internal.Opts{
 					SourceInterfaces: c.String("source-interfaces"),
 					DestInterfaces:   c.String("dest-interfaces"),
-				}).Run(ctx)
+				})
+				if err != nil {
+					return err
+				}
+
+				return reflector.Run(ctx)
 			},
 		}),
 	)

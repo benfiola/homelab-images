@@ -1,6 +1,6 @@
 CONTROLLER_GEN_VERSION ?= 0.20.0
-GORELEASER_VERSION ?= 2.12.7
-SVU_VERSION ?= 3.4.1
+HELM_VERSION ?= 4.2.2
+GH_VERSION ?= 2.95.0
 
 BIN ?= ./.bin
 bin := $(abspath $(BIN))
@@ -16,16 +16,6 @@ help:
 .PHONY: install-tools
 install-tools:
 	@echo "All tools installed to $(bin)"
-
-.PHONY: install-goreleaser
-install-tools: install-goreleaser
-install-goreleaser:
-	@mkdir -p $(bin)
-	@echo "Installing goreleaser $(GORELEASER_VERSION)..."
-	@curl -sL \
-		"https://github.com/goreleaser/goreleaser/releases/download/v$(GORELEASER_VERSION)/goreleaser_$(OS)_$(ARCH_NORMALIZED).tar.gz" \
-		| tar xz -C $(bin)
-	@echo "  ✓ goreleaser installed"
 
 .PHONY: install-svu
 install-tools: install-svu
@@ -49,14 +39,35 @@ install-controller-gen:
 	@GOBIN="$(bin)" go install sigs.k8s.io/controller-tools/cmd/controller-gen@v$(CONTROLLER_GEN_VERSION)
 	@echo "  ✓ controller-gen installed"
 
-.PHONY: install-python
-install-tools: install-python
-install-python:
-	@echo "Installing python..."
-	@if [ "$$(id -u)" -ne 0 ]; then SUDO=sudo; else SUDO=; fi && \
-	$$SUDO apt -y update && \
-	$$SUDO apt -y install python3
-	@echo "  ✓ python installed"
+.PHONY: install-helm
+install-tools: install-helm
+install-helm:
+	@mkdir -p $(bin)
+	@echo "Installing helm $(HELM_VERSION)..."
+	@cd /tmp && \
+	rm -rf helm-tmp && \
+	mkdir helm-tmp && \
+	cd helm-tmp && \
+	curl -sL "https://get.helm.sh/helm-v$(HELM_VERSION)-$(shell echo $(OS) | tr A-Z a-z)-$(ARCH_NORMALIZED).tar.gz" | tar xz && \
+	mv $(shell echo $(OS) | tr A-Z a-z)-$(ARCH_NORMALIZED)/helm $(bin)/helm && \
+	cd /tmp && \
+	rm -rf helm-tmp
+	@echo "  ✓ helm installed"
+
+.PHONY: install-gh
+install-tools: install-gh
+install-gh:
+	@mkdir -p $(bin)
+	@echo "Installing gh $(GH_VERSION)..."
+	@cd /tmp && \
+	rm -rf gh-tmp && \
+	mkdir gh-tmp && \
+	cd gh-tmp && \
+	curl -sL "https://github.com/cli/cli/releases/download/v$(GH_VERSION)/gh_$(GH_VERSION)_$(shell echo $(OS) | tr A-Z a-z)_$(ARCH_NORMALIZED).tar.gz" | tar xz && \
+	mv gh_$(GH_VERSION)_$(shell echo $(OS) | tr A-Z a-z)_$(ARCH_NORMALIZED)/bin/gh $(bin)/gh && \
+	cd /tmp && \
+	rm -rf gh-tmp
+	@echo "  ✓ gh installed"
 
 .PHONY: export-path
 export-path:

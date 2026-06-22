@@ -18,7 +18,7 @@ run-name: |
   ${{ github.event_name == 'workflow_dispatch' && format(
     'publish (manual): {0}',
     github.event.inputs.build_all == 'true' && 'build all' || format('components: {0}', github.event.inputs.components)
-  ) || format('publish: {0}', github.ref_name) }}
+  ) || format('publish: {0}', github.event.head_commit.message) }}
 
 permissions:
   contents: write
@@ -35,9 +35,13 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "1.25.8"
+
       - id: detect
         run: |
-          COMPONENTS=$(python3 scripts/detect-components.py)
+          COMPONENTS=$(go run ./scripts/main.go detect-components)
           echo "components=$COMPONENTS" >> $GITHUB_OUTPUT
         env:
           BUILD_ALL: ${{ github.event.inputs.build_all }}
@@ -88,7 +92,7 @@ jobs:
       - name: get version
         id: version
         run: |
-          VERSION=$(make version \
+          VERSION=$(make next-version \
             RC='${{ steps.version-settings.outputs.rc }}' \
             ALPHA='${{ steps.version-settings.outputs.alpha }}' \
             METADATA='${{ steps.version-settings.outputs.metadata }}')
@@ -102,12 +106,24 @@ jobs:
           git tag '${{ matrix.component }}/${{ steps.version.outputs.version }}'
           git push origin '${{ matrix.component }}/${{ steps.version.outputs.version }}'
 
-      - name: pre-publish
-        run: make pre-publish
+      - name: pre-build
+        run: make pre-build
+        working-directory: ${{ matrix.component }}
+
+      - name: build
+        run: make build
+        working-directory: ${{ matrix.component }}
+
+      - name: package
+        run: make package
         working-directory: ${{ matrix.component }}
 
       - name: publish
         run: make publish
+        working-directory: ${{ matrix.component }}
+
+      - name: release
+        run: make release
         working-directory: ${{ matrix.component }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
