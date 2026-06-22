@@ -21,7 +21,7 @@ run-name: >-
       github.event.inputs.build_all == 'true', 'all components',
       format('components: {0}', github.event.inputs.components)
     )),
-    format('commit: {0}', github.event.head_commit.message)
+    github.event.head_commit.message
   ) }}
 
 permissions:
