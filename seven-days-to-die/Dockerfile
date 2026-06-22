@@ -3,26 +3,8 @@ FROM debian:bookworm-slim AS depotdownloader_installer
 ARG TARGETARCH
 ARG DEPOTDOWNLOADER_VERSION=3.4.0
 
-RUN <<EOF
-set -e
-
-export DEBIAN_FRONTEND=noninteractive
-
-apt -y update
-apt -y install ca-certificates curl libssl3 unzip
-rm -rf /var/lib/apt/lists/*
-
-ARCH="${TARGETARCH}"
-if [ "${ARCH}" = "amd64" ]; then 
-    ARCH="x64"; 
-fi
-curl -fsSL -o archive.zip "https://github.com/SteamRE/DepotDownloader/releases/download/DepotDownloader_${DEPOTDOWNLOADER_VERSION}/DepotDownloader-linux-${ARCH}.zip"
-mkdir -p extract
-unzip -d extract archive.zip
-mkdir -p /out
-mv extract/DepotDownloader /out
-rm -rf extract archive.zip
-EOF
+COPY install-depotdownloader.sh /install.sh
+RUN /install.sh "${DEPOTDOWNLOADER_VERSION}" "${TARGETARCH}" /out
 
 FROM debian:bookworm-slim
 

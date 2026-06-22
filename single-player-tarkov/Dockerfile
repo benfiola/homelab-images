@@ -3,25 +3,12 @@ FROM debian:bookworm-slim AS dotnet_installer
 ARG TARGETARCH
 ARG DOTNET_VERSION=9.0.312
 
-RUN <<EOF
-set -e
-
-export DEBIAN_FRONTEND=noninteractive
-apt -y update
-apt -y install curl libc6 libgcc-s1 libgssapi-krb5-2 libicu72 libssl3 libstdc++6 zlib1g
-rm -rf /var/lib/apt/lists/*
-
-ARCH="${TARGETARCH}"
-if [ "${ARCH}" = "amd64" ]; then 
-  ARCH="x64"
-fi
-
-curl -fsSL -o archive.tar.gz "https://builds.dotnet.microsoft.com/dotnet/Sdk/${DOTNET_VERSION}/dotnet-sdk-${DOTNET_VERSION}-linux-${ARCH}.tar.gz"
-mkdir -p /out
-tar -C /out -xzf archive.tar.gz
-EOF
+COPY install-dotnet.sh /install.sh
+RUN /install.sh "${DOTNET_VERSION}" "${TARGETARCH}" /out
 
 FROM debian:bookworm-slim
+
+ARG TARGETARCH
 
 RUN <<EOF
 set -e
