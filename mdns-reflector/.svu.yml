@@ -1,5 +1,0 @@
-tag:
-  prefix: "mdns-reflector/v"
-  pattern: "mdns-reflector/v*"
-  output: v
-always: true

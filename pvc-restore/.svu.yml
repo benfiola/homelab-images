@@ -1,5 +1,0 @@
-tag:
-  prefix: "pvc-restore/v"
-  pattern: "pvc-restore/*"
-  output: v
-always: true

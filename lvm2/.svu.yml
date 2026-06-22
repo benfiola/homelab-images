@@ -1,5 +1,0 @@
-tag:
-  prefix: "lvm2/v"
-  pattern: "lvm2/v*"
-  output: v
-always: true

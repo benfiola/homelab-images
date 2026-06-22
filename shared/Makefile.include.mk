@@ -15,7 +15,7 @@ list-targets:
 
 .PHONY: version
 version:
-	@COMPONENT_NAME="$(COMPONENT_NAME)" python3 $(dir $(lastword $(MAKEFILE_LIST)))/../.github/scripts/get-version.py
+	@COMPONENT_NAME="$(COMPONENT_NAME)" python3 $(dir $(lastword $(MAKEFILE_LIST)))/../scripts/get-version.py
 
 .PHONY: pre-publish
 pre-publish:

@@ -1,5 +1,0 @@
-tag:
-  prefix: "vault-unseal/v"
-  pattern: "vault-unseal/*"
-  output: v
-always: true

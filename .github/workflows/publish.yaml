@@ -31,7 +31,7 @@ jobs:
 
       - id: detect
         run: |
-          COMPONENTS=$(python3 .github/scripts/detect-components.py)
+          COMPONENTS=$(python3 scripts/detect-components.py)
           echo "components=$COMPONENTS" >> $GITHUB_OUTPUT
         env:
           BUILD_ALL: ${{ github.event.inputs.build_all }}

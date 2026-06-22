@@ -1,5 +1,0 @@
-tag:
-  prefix: "dynamic-dns/v"
-  pattern: "dynamic-dns/*"
-  output: v
-always: true
