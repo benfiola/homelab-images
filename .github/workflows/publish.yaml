@@ -14,11 +14,15 @@ on:
         type: boolean
         default: false
 
-run-name: |
-  ${{ github.event_name == 'workflow_dispatch' && format(
-    'publish (manual): {0}',
-    github.event.inputs.build_all == 'true' && 'build all' || format('components: {0}', github.event.inputs.components)
-  ) || format('publish: {0}', github.event.head_commit.message) }}
+run-name: >-
+  ${{ case(
+    github.event_name == 'workflow_dispatch', 
+    format('manual: {0}', case(
+      github.event.inputs.build_all == 'true', 'all components',
+      format('components: {0}', github.event.inputs.components)
+    )),
+    format('commit: {0}', github.event.head_commit.message)
+  ) }}
 
 permissions:
   contents: write

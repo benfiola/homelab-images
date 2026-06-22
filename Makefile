@@ -5,6 +5,9 @@ GH_VERSION ?= 2.95.0
 BIN ?= ./.bin
 bin := $(abspath $(BIN))
 
+DIST ?= ./.build
+dist := $(abspath $(DIST))
+
 OS ?= $(shell uname -s)
 OS_LOWER := $(shell echo $(OS) | tr A-Z a-z)
 ARCH ?= $(shell uname -m)
@@ -75,3 +78,16 @@ install-gh:
 .PHONY: export-path
 export-path:
 	@echo "Add to PATH: export PATH=\$$PATH:$(bin)"
+
+.PHONY: install-doc-dependencies
+install-tools: install-doc-dependencies
+install-doc-dependencies:
+	cd docs && npm install
+
+.PHONY: build-docs
+build-docs:
+	cd docs && npm run build -- --out-dir=$(dist)
+
+.PHONY: dev-docs
+dev-docs:
+	cd docs && npm run start

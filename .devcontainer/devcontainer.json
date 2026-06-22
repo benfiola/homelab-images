@@ -21,6 +21,9 @@
     },
     "ghcr.io/devcontainers/features/go:1": {
       "version": "1.25.8"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22.21.0"
     }
   },
   "image": "debian:bookworm-slim",

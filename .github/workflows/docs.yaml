@@ -1,0 +1,39 @@
+name: docs
+
+on:
+  push:
+    branches:
+      - "*"
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.21.0"
+      - name: install tools
+        run: BIN=/usr/local/bin make install-tools
+      - name: build docs
+        run: make build-docs
+      - name: upload docs
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .build
+
+  publish-docs:
+    needs: build-docs
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: deploy docs
+        id: deployment
+        uses: actions/deploy-pages@v4
