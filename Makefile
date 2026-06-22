@@ -1,3 +1,4 @@
+CONTROLLER_GEN_VERSION ?= 0.20.0
 GORELEASER_VERSION ?= 2.12.7
 SVU_VERSION ?= 3.4.1
 
@@ -37,6 +38,13 @@ install-svu:
 	cd /tmp && \
 	rm -rf svu
 	@echo "  ✓ svu installed from fork"
+
+.PHONY: install-controller-gen
+install-controller-gen:
+	@mkdir -p $(bin)
+	@echo "Installing controller-gen $(CONTROLLER_GEN_VERSION)..."
+	@GOBIN="$(bin)" go install sigs.k8s.io/controller-tools/cmd/controller-gen@v$(CONTROLLER_GEN_VERSION)
+	@echo "  ✓ controller-gen installed"
 
 .PHONY: export-path
 export-path:

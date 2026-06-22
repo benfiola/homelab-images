@@ -1,12 +1,13 @@
 version: 2
 
+project_name: vault-push-secrets
+
 before:
   hooks:
     - go mod download
 
 builds:
   - main: ./cmd/main.go
-    binary: vault-push-secrets
     goos:
       - linux
     goarch:
@@ -14,17 +15,24 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/benfiola/homelab-images/vault-push-secrets/internal/vaultpushsecrets.Version={{ .Version }}
+      - -X {{ .ModulePath }}/internal.Version={{ .Version }}
 
-dockers:
-  - image_templates:
-      - 'ghcr.io/benfiola/homelab-images/vault-push-secrets:{{ .Version }}'
+dockers_v2:
+  - images:
+      - "{{ .Env.IMAGE_BASE }}/{{ .ProjectName }}"
+    tags:
+      - "{{ .Version }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
     dockerfile: Dockerfile
-    build_flag_templates:
-      - '--label=org.opencontainers.image.version={{ .Version }}'
+    labels:
+      org.opencontainers.image.version: "{{ .Version }}"
+
+changelog:
+  use: github-native
 
 release:
-  github:
-    owner: benfiola
-    name: homelab-images
-  name_template: 'vault-push-secrets-{{ .Version }}'
+  footer: |
+    **Docker Image:** `{{ .Env.IMAGE_BASE}}/{{ .ProjectName }}:{{ .Version }}`
+  name_template: "{{ .ProjectName }}-{{ .Version }}"

@@ -1,4 +1,4 @@
-FROM golang:1.25.8 as builder
+FROM debian:bookworm-slim
 
 ARG TARGETARCH
 ARG TARGETPLATFORM

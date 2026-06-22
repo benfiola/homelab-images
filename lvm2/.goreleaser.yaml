@@ -1,14 +1,26 @@
 version: 2
 
-dockers:
-  - image_templates:
-      - 'ghcr.io/benfiola/homelab-images/lvm2:{{ .Version }}'
+project_name: lvm2
+
+builds:
+  - skip: true
+
+dockers_v2:
+  - images:
+      - "{{ .Env.IMAGE_BASE }}/{{ .ProjectName }}"
+    tags:
+      - "{{ .Version }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
     dockerfile: Dockerfile
-    build_flag_templates:
-      - '--label=org.opencontainers.image.version={{ .Version }}'
+    labels:
+      org.opencontainers.image.version: "{{ .Version }}"
+
+changelog:
+  use: github-native
 
 release:
-  github:
-    owner: benfiola
-    name: homelab-images
-  name_template: 'lvm2-{{ .Version }}'
+  footer: |
+    **Docker Image:** `{{ .Env.IMAGE_BASE}}/{{ .ProjectName }}:{{ .Version }}`
+  name_template: "{{ .ProjectName }}-{{ .Version }}"

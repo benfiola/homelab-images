@@ -1,7 +1,7 @@
 include ../shared/Makefile.include.mk
 
-.PHONY: generate
-generate:
+.PHONY: pre-publish
+pre-publish:
 	rm -rf chart/generated && mkdir -p chart/generated
 	controller-gen object paths="./internal/api/..."
 	controller-gen crd paths="./internal/..." output:stdout > chart/generated/crds.yaml

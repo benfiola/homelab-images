@@ -2,6 +2,10 @@ name: publish
 
 on: [push]
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
@@ -15,10 +19,12 @@ jobs:
 
       - id: detect
         run: |
-          # Detect changed components
-          CHANGED=$(git diff --name-only origin/main...HEAD | cut -d/ -f1 | sort -u)
-          # Filter to actual component directories (exclude .github, vendor, etc.)
-          COMPONENTS=$(echo "$CHANGED" | grep -v '^\.' | grep -v '^vendor' | tr '\n' ',' | sed 's/,$//')
+          if [ "${{ github.ref }}" = "refs/heads/main" ] || [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            CHANGED=$(git diff --name-only HEAD~1...HEAD 2>/dev/null || git ls-tree -r --name-only HEAD)
+          else
+            CHANGED=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
+          fi
+          COMPONENTS=$(echo "$CHANGED" | cut -d/ -f1 | sort -u | grep -v '^\.' | grep -v '^vendor' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
           echo "components=$COMPONENTS" >> $GITHUB_OUTPUT
 
   release:
@@ -28,9 +34,6 @@ jobs:
       matrix:
         component: ${{ fromJson(format('[{0}]', format('"{0}"', replace(needs.detect-changes.outputs.components, ',', '","')))) }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,14 +53,46 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: install goreleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          install-only: true
+      - name: install tools
+        run: make install-tools
+        working-directory: ${{ matrix.component }}
 
-      - name: release component
+      - name: determine version settings
+        id: version-settings
         run: |
-          cd ${{ matrix.component }}
-          goreleaser release
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          BRANCH_NAME="$(echo "${BRANCH_NAME}" | sed 's/[^a-zA-Z0-9.-]/-/g')"
+
+          if [[ "${BRANCH_NAME}" == "dev" ]]; then
+            echo "rc=${{ github.run_number }}" >> $GITHUB_OUTPUT
+          elif [[ "${BRANCH_NAME}" != "main" ]]; then
+            echo "alpha=${{ github.run_number }}" >> $GITHUB_OUTPUT
+            echo "metadata=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: get next version
+        id: version
+        run: |
+          VERSION=$(make next-version \
+            RC='${{ steps.version-settings.outputs.rc }}' \
+            ALPHA='${{ steps.version-settings.outputs.alpha }}' \
+            METADATA='${{ steps.version-settings.outputs.metadata }}')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        working-directory: ${{ matrix.component }}
+
+      - name: create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag '${{ matrix.component }}/${{ steps.version.outputs.version }}'
+          git push origin '${{ matrix.component }}/${{ steps.version.outputs.version }}'
+
+      - name: pre-publish
+        run: make pre-publish
+        working-directory: ${{ matrix.component }}
+
+      - name: publish
+        run: make publish
+        working-directory: ${{ matrix.component }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

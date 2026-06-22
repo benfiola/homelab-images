@@ -6,20 +6,23 @@ builds:
   - skip: true
 
 dockers_v2:
-  - dockerfile: Dockerfile
+  - images:
+      - "{{ .Env.IMAGE_BASE }}/{{ .ProjectName }}"
     extra_files:
       - rootfs
-    images:
-      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/homelab-images/home-assistant
+    tags:
+      - "{{ .Version }}"
     platforms:
       - linux/amd64
       - linux/arm64
-    tags:
-      - "{{.Version}}"
-
-release:
-  footer: |
-    **Docker Image:** `ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/homelab-images/home-assistant:{{.Version}}`
+    dockerfile: Dockerfile
+    labels:
+      org.opencontainers.image.version: "{{ .Version }}"
 
 changelog:
   use: github-native
+
+release:
+  footer: |
+    **Docker Image:** `{{ .Env.IMAGE_BASE}}/{{ .ProjectName }}:{{ .Version }}`
+  name_template: "{{ .ProjectName }}-{{ .Version }}"

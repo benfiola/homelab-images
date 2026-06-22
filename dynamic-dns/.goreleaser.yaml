@@ -1,12 +1,13 @@
 version: 2
 
+project_name: dynamic-dns
+
 before:
   hooks:
     - go mod download
 
 builds:
   - main: ./cmd/main.go
-    binary: dynamic-dns
     goos:
       - linux
     goarch:
@@ -14,17 +15,24 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/benfiola/homelab-images/dynamic-dns/internal/dynamicdns.Version={{ .Version }}
+      - -X {{ .ModulePath }}/internal.Version={{ .Version }}
 
-dockers:
-  - image_templates:
-      - 'ghcr.io/benfiola/homelab-images/dynamic-dns:{{ .Version }}'
+dockers_v2:
+  - images:
+      - "{{ .Env.IMAGE_BASE }}/{{ .ProjectName }}"
+    tags:
+      - "{{ .Version }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
     dockerfile: Dockerfile
-    build_flag_templates:
-      - '--label=org.opencontainers.image.version={{ .Version }}'
+    labels:
+      org.opencontainers.image.version: "{{ .Version }}"
+
+changelog:
+  use: github-native
 
 release:
-  github:
-    owner: benfiola
-    name: homelab-images
-  name_template: 'dynamic-dns-{{ .Version }}'
+  footer: |
+    **Docker Image:** `{{ .Env.IMAGE_BASE}}/{{ .ProjectName }}:{{ .Version }}`
+  name_template: "{{ .ProjectName }}-{{ .Version }}"
