@@ -22,6 +22,9 @@ RUN chmod +x /tmp/build.sh && /tmp/build.sh "${LVM2_VERSION}" /tmp/lvm2.tar.gz
 FROM debian:bookworm-slim
 
 COPY --from=builder /tmp/lvm2.tar.gz /tmp/lvm2.tar.gz
-RUN tar xzf /tmp/lvm2.tar.gz -C / && rm /tmp/lvm2.tar.gz
+RUN <<EOF
+tar xzf /tmp/lvm2.tar.gz -C /
+rm /tmp/lvm2.tar.gz
+EOF
 
 ENTRYPOINT ["/sbin/lvm"]

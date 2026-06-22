@@ -38,7 +38,7 @@ EOF
 
 COPY --from=dotnet_installer /out/dotnet /usr/share/dotnet
 RUN ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet
-COPY $TARGETPLATFORM/single-player-tarkov /usr/bin/single-player-tarkov
+COPY .build/single-player-tarkov_linux_${TARGETARCH} /usr/bin/single-player-tarkov
 
 USER game
 

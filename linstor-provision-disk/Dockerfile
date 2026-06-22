@@ -10,6 +10,6 @@ apt-get install -y thin-provisioning-tools
 rm -rf /var/lib/apt/lists/*
 EOF
 
-COPY $TARGETPLATFORM/linstor-provision-disk /usr/bin/linstor-provision-disk
+COPY .build/linstor-provision-disk_linux_${TARGETARCH} /usr/bin/linstor-provision-disk
 
 ENTRYPOINT ["linstor-provision-disk"]
