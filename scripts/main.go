@@ -7,12 +7,47 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 )
 
 const DefaultImageBase = "ghcr.io/benfiola/homelab-images"
+
+// semverRegex is the canonical semver regex from semver.org, extended with a leading 'v'.
+var semverRegex = regexp.MustCompile(`^v(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$`)
+
+func parseSemver(v string) map[string]string {
+	m := semverRegex.FindStringSubmatch(v)
+	if m == nil {
+		return nil
+	}
+	result := make(map[string]string)
+	for i, name := range semverRegex.SubexpNames() {
+		if name != "" {
+			result[name] = m[i]
+		}
+	}
+	return result
+}
+
+// imageTagVersion converts a semver string to a valid OCI image tag by replacing
+// the '+' build-metadata separator (not allowed in OCI tags) with '-'.
+func imageTagVersion(version string) (string, error) {
+	p := parseSemver(version)
+	if p == nil {
+		return "", fmt.Errorf("version %q does not match semver", version)
+	}
+	v := fmt.Sprintf("v%s.%s.%s", p["major"], p["minor"], p["patch"])
+	if p["prerelease"] != "" {
+		v += "-" + p["prerelease"]
+	}
+	if p["buildmetadata"] != "" {
+		v += "_" + p["buildmetadata"]
+	}
+	return v, nil
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -23,8 +58,8 @@ func main() {
 	cmd := os.Args[1]
 
 	switch cmd {
-	case "generate":
-		generate()
+	case "generate-k8s-controller":
+		generateK8sController()
 	case "build-go":
 		buildGo()
 	case "build-helm":
@@ -39,8 +74,6 @@ func main() {
 		publishHelm()
 	case "get-next-version":
 		getNextVersion()
-	case "get-current-version":
-		getCurrentVersion()
 	case "create-github-release":
 		createGithubRelease()
 	case "detect-components":
@@ -89,7 +122,7 @@ func buildGo() {
 	var platformsList []string
 	if platforms != "" {
 		// Parse comma-separated platforms (e.g., "linux/amd64,linux/arm64")
-		for _, p := range strings.Split(platforms, ",") {
+		for p := range strings.SplitSeq(platforms, ",") {
 			p = strings.TrimSpace(p)
 			if p != "" {
 				platformsList = append(platformsList, p)
@@ -142,7 +175,7 @@ func buildGo() {
 	}
 }
 
-func generate() {
+func generateK8sController() {
 	hasKubebuilder := false
 
 	var errFound = errors.New("found") // sentinel error
@@ -357,9 +390,14 @@ func packageDocker() {
 		os.Exit(1)
 	}
 
-	imageBase := DefaultImageBase
+	imageVersion, err := imageTagVersion(version)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 
-	imageTag := fmt.Sprintf("%s/%s:%s", imageBase, component, version)
+	imageBase := DefaultImageBase
+	imageTag := fmt.Sprintf("%s/%s:%s", imageBase, component, imageVersion)
 
 	fmt.Printf("Building Docker image: %s\n", imageTag)
 	fmt.Printf("Platforms: %s\n", platforms)
@@ -568,8 +606,8 @@ func deriveModulePath() (string, error) {
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimPrefix(line, "module "), nil
+		if mod, ok := strings.CutPrefix(line, "module "); ok {
+			return mod, nil
 		}
 	}
 
@@ -605,8 +643,14 @@ func publishDocker() {
 		os.Exit(1)
 	}
 
+	imageVersion, err := imageTagVersion(version)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
 	imageBase := DefaultImageBase
-	imageTag := fmt.Sprintf("%s/%s:%s", imageBase, component, version)
+	imageTag := fmt.Sprintf("%s/%s:%s", imageBase, component, imageVersion)
 
 	fmt.Printf("Pushing Docker image: %s\n", imageTag)
 	fmt.Printf("Platforms: %s\n", platforms)
@@ -674,31 +718,6 @@ func publishHelm() {
 	fmt.Printf("✓ Pushed %s\n", chartRef)
 }
 
-func getCurrentVersion() {
-	component, err := deriveComponentName()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-
-	svuArgs := []string{
-		"current",
-		fmt.Sprintf("--tag.prefix=%s/v", component),
-		fmt.Sprintf("--tag.pattern=%s/v*", component),
-		"--tag.output=v",
-	}
-
-	cmd := exec.Command("svu", svuArgs...)
-	output, err := cmd.Output()
-	if err != nil {
-		// Fall back to 0.0.0 if no tags exist
-		fmt.Println("v0.0.0")
-		return
-	}
-
-	fmt.Print(strings.TrimSpace(string(output)))
-}
-
 func createGithubRelease() {
 	version := os.Getenv("VERSION")
 	if version == "" {
@@ -712,8 +731,14 @@ func createGithubRelease() {
 		os.Exit(1)
 	}
 
-	// Determine if prerelease (contains - or +)
-	isPrerelease := strings.ContainsAny(version, "-+")
+	parsed := parseSemver(version)
+	if parsed == nil {
+		fmt.Fprintf(os.Stderr, "error: version %q does not match semver\n", version)
+		os.Exit(1)
+	}
+
+	isPrerelease := parsed["prerelease"] != "" || parsed["buildmetadata"] != ""
+	buildMetadata := parsed["buildmetadata"] // non-empty for branch-scoped pre-releases
 
 	// Get previous tag
 	tagPrefix := fmt.Sprintf("%s/", component)
@@ -728,12 +753,22 @@ func createGithubRelease() {
 	var previousTag string
 	currentTag := fmt.Sprintf("%s%s", tagPrefix, version)
 
-	// Find previous tag (skip current if it exists)
+	// Find the previous tag in the same branch lineage.
+	// When buildMetadata is set (e.g. +my-branch), restrict to tags whose parsed
+	// buildmetadata matches — otherwise we'd cross into another branch's pre-releases.
 	for _, tag := range tags {
-		if tag != currentTag && tag != "" {
-			previousTag = tag
-			break
+		if tag == currentTag || tag == "" {
+			continue
 		}
+		if buildMetadata != "" {
+			tagVersion := strings.TrimPrefix(tag, tagPrefix)
+			tagParsed := parseSemver(tagVersion)
+			if tagParsed == nil || tagParsed["buildmetadata"] != buildMetadata {
+				continue
+			}
+		}
+		previousTag = tag
+		break
 	}
 
 	// Generate changelog
@@ -750,10 +785,32 @@ func createGithubRelease() {
 		os.Exit(1)
 	}
 
+	// OCI tags don't allow '+'; normalize via imageTagVersion
+	imageVersion, err := imageTagVersion(version)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Build release notes with comparison link
 	var releaseNotes strings.Builder
 	fmt.Fprintf(&releaseNotes, "## [%s](https://github.com/benfiola/homelab-images/compare/%s...%s) (%s)\n\n",
-	version, previousTag, currentTag, time.Now().Format("2006-01-02"))
+		version, previousTag, currentTag, time.Now().Format("2006-01-02"))
+
+	if _, err := os.Stat("Dockerfile"); err == nil {
+		fmt.Fprintf(&releaseNotes, "### Docker Image\n\n")
+		fmt.Fprintf(&releaseNotes, "```\ndocker pull %s/%s:%s\n```\n\n", DefaultImageBase, component, imageVersion)
+	}
+
+	if _, err := os.Stat("chart"); err == nil {
+		fmt.Fprintf(&releaseNotes, "### Helm Chart\n\n")
+		helmPull := fmt.Sprintf("helm pull oci://%s/charts/%s --version %s", DefaultImageBase, component, version)
+		if isPrerelease {
+			helmPull += " --devel"
+		}
+		fmt.Fprintf(&releaseNotes, "```\n%s\n```\n\n", helmPull)
+	}
+
 	fmt.Fprintf(&releaseNotes, "### Changes\n\n")
 	fmt.Fprintf(&releaseNotes, "%s", string(changelogOutput))
 

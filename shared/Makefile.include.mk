@@ -13,10 +13,6 @@ list-targets:
 		| grep -E -v -e '^[^[:alnum:]]' -e '^$$@$$$$' \
 		| sed -e 's/^/\t/'
 
-.PHONY: current-version
-current-version:
-	@go run $(REPO_ROOT)/scripts/main.go get-current-version
-
 .PHONY: next-version
 next-version:
 	@RC="$(RC)" ALPHA="$(ALPHA)" METADATA="$(METADATA)" \
@@ -34,12 +30,12 @@ build-helm:
 	@VERSION="$(VERSION)" BUILD_DIR="$(BUILD_DIR)" \
 		go run $(REPO_ROOT)/scripts/main.go build-helm
 
-.PHONY: generate
-generate:
-	@go run $(REPO_ROOT)/scripts/main.go generate
+.PHONY: generate-k8s-controller
+generate-k8s-controller:
+	@go run $(REPO_ROOT)/scripts/main.go generate-k8s-controller
 
 .PHONY: pre-build
-pre-build: generate
+pre-build: generate-k8s-controller
 
 .PHONY: build
 build: pre-build build-go build-helm
