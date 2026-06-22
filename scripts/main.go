@@ -361,7 +361,7 @@ func packageDocker() {
 
 	imageTag := fmt.Sprintf("%s/%s:%s", imageBase, component, version)
 
-	fmt.Printf("Building and pushing Docker image: %s\n", imageTag)
+	fmt.Printf("Building Docker image: %s\n", imageTag)
 	fmt.Printf("Platforms: %s\n", platforms)
 
 	cmd := exec.Command("docker", "buildx", "build",
@@ -378,7 +378,7 @@ func packageDocker() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("✓ Built and pushed %s\n", imageTag)
+	fmt.Printf("✓ Built %s\n", imageTag)
 }
 
 func getNextVersion() {
