@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -566,8 +568,14 @@ func getChangedComponents(repoRoot string) []string {
 		output, _ = exec.Command("git", "ls-tree", "-r", "--name-only", "HEAD").Output()
 	}
 
-	var components []string
 	changedFiles := strings.Split(string(output), "\n")
+
+	for _, file := range changedFiles {
+		if strings.HasPrefix(file, "shared/") || file == "shared" {
+			return validComponents
+		}
+	}
+
 	seen := make(map[string]bool)
 
 	for _, file := range changedFiles {
@@ -577,13 +585,19 @@ func getChangedComponents(repoRoot string) []string {
 		parts := strings.Split(file, "/")
 		component := parts[0]
 
+		if component == "shared" {
+			for _, component := range validComponents {
+				seen[component] = true
+			}
+			break
+		}
+
 		if validSet[component] && !seen[component] {
-			components = append(components, component)
 			seen[component] = true
 		}
 	}
 
-	sort.Strings(components)
+	components := slices.Sorted(maps.Keys(seen))
 	return components
 }
 
