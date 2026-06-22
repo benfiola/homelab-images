@@ -27,6 +27,8 @@ jobs:
   publish-docs:
     needs: build-docs
     runs-on: ubuntu-latest
+    concurrency:
+      group: "${{github.workflow}}-publish-docs"
     permissions:
       id-token: write
       pages: write
