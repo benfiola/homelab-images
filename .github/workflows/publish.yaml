@@ -106,24 +106,20 @@ jobs:
           git tag '${{ matrix.component }}/${{ steps.version.outputs.version }}'
           git push origin '${{ matrix.component }}/${{ steps.version.outputs.version }}'
 
-      - name: pre-build
-        run: make pre-build
-        working-directory: ${{ matrix.component }}
-
       - name: build
-        run: make build
+        run: make build VERSION=${{ steps.version.outputs.version }}
         working-directory: ${{ matrix.component }}
 
       - name: package
-        run: make package
+        run: make package VERSION=${{ steps.version.outputs.version }}
         working-directory: ${{ matrix.component }}
 
       - name: publish
-        run: make publish
+        run: make publish VERSION=${{ steps.version.outputs.version }}
         working-directory: ${{ matrix.component }}
 
       - name: release
-        run: make release
+        run: make release VERSION=${{ steps.version.outputs.version }}
         working-directory: ${{ matrix.component }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

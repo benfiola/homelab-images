@@ -22,14 +22,16 @@ next-version:
 	@RC="$(RC)" ALPHA="$(ALPHA)" METADATA="$(METADATA)" \
 		go run $(REPO_ROOT)/scripts/main.go get-next-version
 
+VERSION ?= $(shell RC="$(RC)" ALPHA="$(ALPHA)" METADATA="$(METADATA)" go run $(REPO_ROOT)/scripts/main.go get-next-version)
+
 .PHONY: build-go
 build-go:
-	@VERSION="$(shell make version)" BUILD_DIR="$(BUILD_DIR)" PLATFORMS="$(PLATFORMS)" \
+	@VERSION="$(VERSION)" BUILD_DIR="$(BUILD_DIR)" PLATFORMS="$(PLATFORMS)" \
 		go run $(REPO_ROOT)/scripts/main.go build-go
 
 .PHONY: build-helm
 build-helm:
-	@VERSION="$(shell make version)" BUILD_DIR="$(BUILD_DIR)" \
+	@VERSION="$(VERSION)" BUILD_DIR="$(BUILD_DIR)" \
 		go run $(REPO_ROOT)/scripts/main.go build-helm
 
 .PHONY: generate
@@ -44,22 +46,25 @@ build: pre-build build-go build-helm
 
 .PHONY: package-docker
 package-docker:
-	@VERSION="$(shell make version)" PLATFORMS="$(PLATFORMS)" \
+	@VERSION="$(VERSION)" PLATFORMS="$(PLATFORMS)" \
 		go run $(REPO_ROOT)/scripts/main.go build-docker
 
 .PHONY: package-helm
 package-helm:
-	@VERSION="$(shell make version)" \
+	@VERSION="$(VERSION)" \
 		go run $(REPO_ROOT)/scripts/main.go push-helm
+
+.PHONY: package
+package: package-docker package-helm
 
 .PHONY: push-docker
 push-docker:
-	@VERSION="$(shell make version)" \
+	@VERSION="$(VERSION)" \
 		go run $(REPO_ROOT)/scripts/main.go push-docker
 
 .PHONY: push-helm
 push-helm:
-	@VERSION="$(shell make version)" \
+	@VERSION="$(VERSION)" \
 		go run $(REPO_ROOT)/scripts/main.go push-helm
 
 .PHONY: publish
@@ -67,7 +72,7 @@ publish: push-docker push-helm
 
 .PHONY: github-release
 github-release:
-	@VERSION="$(shell make version)" \
+	@VERSION="$(VERSION)" \
 		go run $(REPO_ROOT)/scripts/main.go create-github-release
 
 .PHONY: release
