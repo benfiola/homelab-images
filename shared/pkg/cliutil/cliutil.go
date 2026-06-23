@@ -6,8 +6,17 @@ import (
 	"os"
 
 	"github.com/benfiola/homelab-images/shared/pkg/logging"
+	"github.com/benfiola/homelab-images/shared/pkg/ptr"
 	"github.com/urfave/cli/v3"
 )
+
+func BoolPtr(c *cli.Command, arg string) *bool {
+	var value *bool
+	if c.IsSet(arg) {
+		value = ptr.Get(c.Bool(arg))
+	}
+	return value
+}
 
 func Setup(command *cli.Command) *cli.Command {
 	flags := []cli.Flag{

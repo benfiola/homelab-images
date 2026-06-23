@@ -4,18 +4,9 @@ import (
 	"context"
 
 	"github.com/benfiola/homelab-images/shared/pkg/cliutil"
-	"github.com/benfiola/homelab-images/shared/pkg/ptr"
 	"github.com/benfiola/homelab-images/vault-push-secrets/internal"
 	"github.com/urfave/cli/v3"
 )
-
-func boolPtr(c *cli.Command, arg string) *bool {
-	var value *bool
-	if c.IsSet(arg) {
-		value = ptr.Get(c.Bool(arg))
-	}
-	return value
-}
 
 func main() {
 	cliutil.Run(
@@ -72,7 +63,7 @@ func main() {
 			},
 			Action: func(ctx context.Context, c *cli.Command) error {
 				client, err := internal.New(&internal.Opts{
-					Continuous:        boolPtr(c, "continuous"),
+					Continuous:        cliutil.BoolPtr(c, "continuous"),
 					EncryptionKey:     c.String("encryption-key"),
 					GCSCredentials:    c.String("gcs-credentials"),
 					GCSDestination:    c.String("gcs-destination"),

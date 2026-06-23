@@ -4,18 +4,9 @@ import (
 	"context"
 
 	"github.com/benfiola/homelab-images/shared/pkg/cliutil"
-	"github.com/benfiola/homelab-images/shared/pkg/ptr"
 	"github.com/benfiola/homelab-images/vault-unseal/internal"
 	"github.com/urfave/cli/v3"
 )
-
-func boolPtr(c *cli.Command, arg string) *bool {
-	var value *bool
-	if c.IsSet(arg) {
-		value = ptr.Get(c.Bool(arg))
-	}
-	return value
-}
 
 func main() {
 	cliutil.Run(
@@ -39,7 +30,7 @@ func main() {
 			},
 			Action: func(ctx context.Context, c *cli.Command) error {
 				unsealer, err := internal.New(&internal.Opts{
-					Continuous:     boolPtr(c, "continuous"),
+					Continuous:     cliutil.BoolPtr(c, "continuous"),
 					VaultAddr:      c.String("vault-addr"),
 					VaultUnsealKey: c.String("vault-unseal-key"),
 				})

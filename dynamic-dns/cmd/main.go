@@ -41,13 +41,11 @@ func main() {
 						return fmt.Errorf("failed to parse cloudflare zones: %w", err)
 					}
 				}
-
-				continuous := c.Bool("continuous")
 				
 				client, err := internal.New(&internal.Opts{
 					CloudflareAPIToken: c.String("cloudflare-api-token"),
 					CloudflareZones:    cloudflareZones,
-					Continuous:         &continuous,
+					Continuous:         cliutil.BoolPtr(c, "continuous"),
 					Interval:           c.Duration("interval"),
 				})
 				if err != nil {
