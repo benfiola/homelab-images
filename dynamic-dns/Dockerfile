@@ -4,7 +4,7 @@ ARG TARGETARCH
 
 RUN <<EOF
 apt -y update
-apt -y install ca-certificates
+apt -y install ca-certificates procps
 rm -rf /var/lib/apt/lists/*
 EOF
 
