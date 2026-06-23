@@ -24,7 +24,7 @@ mkdir -p /cache /data /game
 chown -R game:game /cache /data /game
 EOF
 
-COPY --from=depotdownloader_installer /out/DepotDownloader /usr/bin/bin/DepotDownloader
+COPY --from=depotdownloader_installer /out/DepotDownloader /usr/bin/DepotDownloader
 COPY .build/seven-days-to-die_linux_${TARGETARCH} /usr/bin/seven-days-to-die
 
 USER game

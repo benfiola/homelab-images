@@ -748,12 +748,12 @@ func createGithubRelease() {
 		break
 	}
 
-	// Generate changelog
+	// Generate changelog — restrict to commits touching this component or shared/
 	var changelogCmd *exec.Cmd
 	if previousTag != "" {
-		changelogCmd = exec.Command("git", "log", fmt.Sprintf("%s...HEAD", previousTag), "--oneline")
+		changelogCmd = exec.Command("git", "log", fmt.Sprintf("%s...%s", previousTag, currentTag), "--oneline", "--", ".", "../shared")
 	} else {
-		changelogCmd = exec.Command("git", "log", "--oneline")
+		changelogCmd = exec.Command("git", "log", currentTag, "--oneline", "--", ".", "../shared")
 	}
 
 	changelogOutput, err := changelogCmd.Output()
