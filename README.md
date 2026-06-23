@@ -4,4 +4,4 @@
 
 ---
 
-View full project documentation [here](https://benfiola.github.io/homelab-helper).
+View full project documentation [here](https://benfiola.github.io/homelab-images).
