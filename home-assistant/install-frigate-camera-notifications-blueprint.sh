@@ -2,7 +2,7 @@
 set -e
 
 VERSION="f003ea11ba96e262199ea130fe8f749605645a52"
-DEST="${ADDONS_DIR}/blueprints"
+DEST="${ADDONS_DIR}/blueprints/automation"
 
 apk add --no-cache curl
 mkdir -p "${DEST}"
