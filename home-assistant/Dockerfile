@@ -6,6 +6,7 @@ COPY install-*.sh /
 
 RUN <<EOF
 set -e
+mkdir -p /addons/www /addons/custom_components
 for script in /install-*.sh; do ADDONS_DIR=/addons "$script"; done
 rm /install-*.sh
 EOF
