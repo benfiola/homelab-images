@@ -1,10 +1,8 @@
 #!/bin/sh
 set -e
-mkdir -p /config/custom_components
-mkdir -p /config/www
-mkdir -p /config/blueprints/automation
-mkdir -p /config/blueprints/script
-cp -r /addons/custom_components/. /config/custom_components/
-cp -r /addons/www/. /config/www/
-cp -r /addons/blueprints/automation/. /config/blueprints/automation/
-cp -r /addons/blueprints/script/. /config/blueprints/script/
+rm -rf /config/custom_components /config/www /config/blueprints/automation /config/blueprints/script
+mkdir -p /config/blueprints
+cp -r /addons/custom_components /config/
+cp -r /addons/www /config/
+cp -r /addons/blueprints/automation /config/blueprints/
+cp -r /addons/blueprints/script /config/blueprints/
