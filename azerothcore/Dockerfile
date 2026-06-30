@@ -1,64 +1,11 @@
-FROM ubuntu:24.04 AS ac-builder
-
-ENV AC_ROOT=/azerothcore
-
-COPY scripts/clone-azerothcore.sh /tmp/
-RUN /tmp/clone-azerothcore.sh
-
-COPY scripts/clone-module-*.sh /tmp/
-RUN <<EOF
-find /tmp -name 'clone-module-*.sh' | sort | xargs -I{} bash {}
-EOF
-
-COPY scripts/build-azerothcore.sh /tmp/
-RUN /tmp/build-azerothcore.sh
-
-FROM debian:bookworm-slim
+FROM ghcr.io/benfiola/homelab-images/azerothcore-base:1.0.0
 
 ARG TARGETARCH
 
-ENV PATH=/azerothcore/env/dist/bin:$PATH
-
-RUN <<EOF
-apt update
-apt install -y \
-    curl \
-    default-mysql-client \
-    libarchive-tools \
-    libicu72 \
-    libmariadb3 \
-    libncurses6 \
-    libreadline8
-rm -rf /var/lib/apt/lists/*
-EOF
-
-RUN <<EOF
-groupadd -g 1000 acore
-useradd -u 1000 -g 1000 -m acore
-EOF
-
-RUN <<EOF
-mkdir -p \
-    /azerothcore/env/dist/bin \
-    /azerothcore/env/dist/data \
-    /azerothcore/env/dist/etc \
-    /azerothcore/env/dist/logs \
-    /azerothcore/env/ref/etc
-EOF
-
-COPY --from=ac-builder /azerothcore/env/dist/bin/authserver  /azerothcore/env/dist/bin/authserver
-COPY --from=ac-builder /azerothcore/env/dist/bin/worldserver /azerothcore/env/dist/bin/worldserver
-COPY --from=ac-builder /azerothcore/env/dist/bin/dbimport    /azerothcore/env/dist/bin/dbimport
-COPY --from=ac-builder /azerothcore/env/dist/etc/            /azerothcore/env/ref/etc/
-COPY --from=ac-builder /azerothcore/data/                    /azerothcore/data/
-COPY --from=ac-builder /azerothcore/modules/                 /azerothcore/modules/
-
 COPY .build/azerothcore_linux_${TARGETARCH} /usr/bin/azerothcore
 
-COPY scripts/entrypoint.sh /azerothcore/entrypoint.sh
-
-VOLUME ["/azerothcore/env/dist/etc", "/azerothcore/env/dist/data"]
+VOLUME ["/config", "/data"]
 
 USER acore
 
-ENTRYPOINT ["/azerothcore/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/azerothcore"]
