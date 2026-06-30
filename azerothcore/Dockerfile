@@ -1,10 +1,46 @@
-FROM ghcr.io/benfiola/homelab-images/azerothcore-base:1.0.0
+ARG AZEROTHCORE_BASE=ghcr.io/benfiola/homelab-images/azerothcore-base:1.0.0
+FROM ${AZEROTHCORE_BASE} AS azerothcore-base
+
+FROM debian:bookworm-slim
 
 ARG TARGETARCH
 
-COPY .build/azerothcore_linux_${TARGETARCH} /usr/bin/azerothcore
+ENV PATH=/azerothcore/env/dist/bin:$PATH
 
-VOLUME ["/config", "/data"]
+RUN <<EOF
+apt update
+apt install -y \
+    curl \
+    default-mysql-client \
+    libarchive-tools \
+    libicu72 \
+    libmariadb3 \
+    libncurses6 \
+    libreadline8
+rm -rf /var/lib/apt/lists/*
+
+groupadd -g 1000 acore
+useradd -u 1000 -g 1000 -m acore
+
+mkdir -p \
+    /azerothcore/env/dist/etc \
+    /config \
+    /data \
+    /logs
+
+chown acore:acore \
+    /azerothcore/env/dist/etc \
+    /config \
+    /data \
+    /logs
+EOF
+
+COPY --from=azerothcore-base /azerothcore/env/dist/bin/ /azerothcore/env/dist/bin/
+COPY --from=azerothcore-base /azerothcore/env/ref/etc/  /azerothcore/env/ref/etc/
+COPY --from=azerothcore-base /azerothcore/data/         /azerothcore/data/
+COPY --from=azerothcore-base /azerothcore/modules/      /azerothcore/modules/
+
+COPY .build/azerothcore_linux_${TARGETARCH} /usr/bin/azerothcore
 
 USER acore
 
