@@ -1,4 +1,4 @@
-ARG AZEROTHCORE_BASE=ghcr.io/benfiola/homelab-images/azerothcore-base:1.0.0
+ARG AZEROTHCORE_BASE=ghcr.io/benfiola/homelab-images/azerothcore-base:1.0.1
 FROM ${AZEROTHCORE_BASE} AS azerothcore-base
 
 FROM debian:bookworm-slim
