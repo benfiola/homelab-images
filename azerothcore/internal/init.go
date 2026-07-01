@@ -161,14 +161,7 @@ func (i *Init) runMigrations(ctx context.Context) error {
 	}
 
 	logger.Info("running dbimport")
-	if err := cmd.StreamWithOpts(ctx, cmd.CmdOpts{
-		Env: envWith(
-			"AC_LOGIN_DATABASE_INFO="+i.opts.LoginDB,
-			"AC_WORLD_DATABASE_INFO="+i.opts.WorldDB,
-			"AC_CHARACTER_DATABASE_INFO="+i.opts.CharacterDB,
-			"AC_PLAYERBOTS_DATABASE_INFO="+i.opts.PlayerbotsDB,
-		),
-	}, "/azerothcore/env/dist/bin/dbimport"); err != nil {
+	if err := cmd.Stream(ctx, "/usr/bin/azerothcore", "dbimport"); err != nil {
 		return fmt.Errorf("dbimport: %w", err)
 	}
 
@@ -363,17 +356,3 @@ func (d *dbInfo) adminDSN() string {
 	return fmt.Sprintf("%s:%s@tcp(%s:%s)/", d.user, d.pass, d.host, d.port)
 }
 
-// envWith returns os.Environ() with the provided key=value pairs overriding any existing values.
-func envWith(overrides ...string) []string {
-	keys := make(map[string]bool, len(overrides))
-	for _, o := range overrides {
-		keys[strings.SplitN(o, "=", 2)[0]] = true
-	}
-	env := make([]string, 0, len(os.Environ())+len(overrides))
-	for _, e := range os.Environ() {
-		if !keys[strings.SplitN(e, "=", 2)[0]] {
-			env = append(env, e)
-		}
-	}
-	return append(env, overrides...)
-}
