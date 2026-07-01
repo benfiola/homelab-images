@@ -225,21 +225,36 @@ func (i *Init) initializeServer(ctx context.Context) error {
 		return fmt.Errorf("parse config: %w", err)
 	}
 
-	managed := make([]any, len(cfg.Accounts))
-	for idx, a := range cfg.Accounts {
-		managed[idx] = strings.ToUpper(a.Username)
+	desired := make(map[string]bool, len(cfg.Accounts))
+	for _, a := range cfg.Accounts {
+		desired[strings.ToUpper(a.Username)] = true
 	}
 
-	logger.Info("deleting stale accounts")
-	var deleteErr error
-	if len(managed) == 0 {
-		_, deleteErr = db.ExecContext(ctx, "DELETE FROM account")
-	} else {
-		placeholders := strings.TrimRight(strings.Repeat("?,", len(managed)), ",")
-		_, deleteErr = db.ExecContext(ctx, "DELETE FROM account WHERE username NOT IN ("+placeholders+")", managed...)
+	rows, err := db.QueryContext(ctx, "SELECT username FROM account")
+	if err != nil {
+		return fmt.Errorf("query accounts: %w", err)
 	}
-	if deleteErr != nil {
-		return fmt.Errorf("delete stale accounts: %w", deleteErr)
+	var existing []string
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan account: %w", err)
+		}
+		existing = append(existing, username)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate accounts: %w", err)
+	}
+
+	for _, username := range existing {
+		if !desired[username] {
+			logger.Info("deleting stale account", "username", username)
+			if _, err := db.ExecContext(ctx, "DELETE FROM account WHERE username = ?", username); err != nil {
+				return fmt.Errorf("delete account %s: %w", username, err)
+			}
+		}
 	}
 
 	for _, a := range cfg.Accounts {
