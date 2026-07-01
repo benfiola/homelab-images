@@ -21,6 +21,8 @@ import (
 type Opts struct {
 	GameDataURL      string
 	DataDir          string
+	LogsDir          string
+	TempDir          string
 	LoginDB          string
 	WorldDB          string
 	CharacterDB      string
@@ -161,7 +163,15 @@ func (i *Init) runMigrations(ctx context.Context) error {
 	}
 
 	logger.Info("running dbimport")
-	if err := cmd.Stream(ctx, "/usr/bin/azerothcore", "dbimport"); err != nil {
+	if err := cmd.Stream(ctx, "azerothcore", "dbimport",
+		"--login-db", i.opts.LoginDB,
+		"--world-db", i.opts.WorldDB,
+		"--character-db", i.opts.CharacterDB,
+		"--playerbots-db", i.opts.PlayerbotsDB,
+		"--data-dir", i.opts.DataDir,
+		"--logs-dir", i.opts.LogsDir,
+		"--temp-dir", i.opts.TempDir,
+	); err != nil {
 		return fmt.Errorf("dbimport: %w", err)
 	}
 

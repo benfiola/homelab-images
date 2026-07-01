@@ -43,6 +43,16 @@ func initCmd() *cli.Command {
 				Value:   "/data",
 			},
 			&cli.StringFlag{
+				Name:    "logs-dir",
+				Sources: cli.EnvVars("AC_LOGS_DIR"),
+				Value:   "/logs",
+			},
+			&cli.StringFlag{
+				Name:    "temp-dir",
+				Sources: cli.EnvVars("AC_TEMP_DIR"),
+				Value:   "/tmp/azerothcore",
+			},
+			&cli.StringFlag{
 				Name:     "login-db",
 				Required: true,
 				Sources:  cli.EnvVars("AC_LOGIN_DATABASE_INFO"),
@@ -76,6 +86,8 @@ func initCmd() *cli.Command {
 			i, err := internal.New(&internal.Opts{
 				GameDataURL:      c.String("game-data-url"),
 				DataDir:          c.String("data-dir"),
+				LogsDir:          c.String("logs-dir"),
+				TempDir:          c.String("temp-dir"),
 				LoginDB:          c.String("login-db"),
 				WorldDB:          c.String("world-db"),
 				CharacterDB:      c.String("character-db"),
