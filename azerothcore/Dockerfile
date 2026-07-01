@@ -16,7 +16,8 @@ apt install -y \
     libicu74 \
     libmysqlclient21 \
     libncurses6 \
-    libreadline8
+    libreadline8 \
+    vim
 rm -rf /var/lib/apt/lists/*
 
 userdel --remove ubuntu
@@ -27,13 +28,15 @@ mkdir -p \
     /azerothcore/env/dist/etc \
     /config \
     /data \
-    /logs
+    /logs \
+    /tmp/azerothcore
 
 chown acore:acore \
     /azerothcore/env/dist/etc \
     /config \
     /data \
-    /logs
+    /logs \
+    /tmp/azerothcore
 EOF
 
 COPY --from=azerothcore-base /azerothcore/env/dist/bin/ /azerothcore/env/dist/bin/
