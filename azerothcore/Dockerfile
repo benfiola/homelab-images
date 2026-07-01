@@ -1,7 +1,7 @@
-ARG AZEROTHCORE_BASE=ghcr.io/benfiola/homelab-images/azerothcore-base:1.0.1
+ARG AZEROTHCORE_BASE=ghcr.io/benfiola/homelab-images/azerothcore-base:1.0.2
 FROM ${AZEROTHCORE_BASE} AS azerothcore-base
 
-FROM debian:bookworm-slim
+FROM ubuntu:24.04
 
 ARG TARGETARCH
 
@@ -13,12 +13,13 @@ apt install -y \
     curl \
     default-mysql-client \
     libarchive-tools \
-    libicu72 \
-    libmariadb3 \
+    libicu74 \
+    libmysqlclient21 \
     libncurses6 \
     libreadline8
 rm -rf /var/lib/apt/lists/*
 
+userdel --remove ubuntu
 groupadd -g 1000 acore
 useradd -u 1000 -g 1000 -m acore
 

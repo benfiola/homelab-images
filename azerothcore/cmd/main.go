@@ -248,6 +248,10 @@ func dbimportCmd() *cli.Command {
 			os.Setenv("AC_LOGS_DIR", c.String("logs-dir"))
 			os.Setenv("AC_TEMP_DIR", c.String("temp-dir"))
 
+			if err := copyConfIfMissing("dbimport"); err != nil {
+				return err
+			}
+
 			binary, err := exec.LookPath("dbimport")
 			if err != nil {
 				return err

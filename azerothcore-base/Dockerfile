@@ -13,7 +13,7 @@ EOF
 COPY build-azerothcore.sh /tmp/
 RUN /tmp/build-azerothcore.sh
 
-FROM debian:bookworm-slim
+FROM scratch
 
 COPY --from=ac-builder /azerothcore/env/dist/bin/authserver  /azerothcore/env/dist/bin/authserver
 COPY --from=ac-builder /azerothcore/env/dist/bin/worldserver /azerothcore/env/dist/bin/worldserver

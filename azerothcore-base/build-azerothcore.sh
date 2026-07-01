@@ -13,6 +13,7 @@ apt install -y \
     cmake \
     libboost-all-dev \
     libbz2-dev \
+    liblzma-dev \
     libmysqlclient-dev \
     libncurses-dev \
     libreadline-dev \
@@ -30,5 +31,6 @@ cmake .. \
     -DAPPS_BUILD=all \
     -DTOOLS_BUILD=all \
     -DSCRIPTS=static \
-    -DMODULES=static
+    -DMODULES=static \
+    -DBoost_USE_STATIC_LIBS=ON
 make -j$(nproc) install
