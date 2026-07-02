@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/benfiola/homelab-images/azerothcore/internal"
@@ -81,7 +82,7 @@ func authserverCmd() *cli.Command {
 			os.Setenv("AC_UPDATES_ENABLE_DATABASES", "0")
 			os.Setenv("AC_DISABLE_INTERACTIVE", "1")
 
-			if err := copyConfIfMissing("authserver"); err != nil {
+			if err := copyConfIfMissing("authserver.conf.dist"); err != nil {
 				return err
 			}
 
@@ -105,10 +106,13 @@ func worldserverCmd() *cli.Command {
 			os.Setenv("AC_UPDATES_ENABLE_DATABASES", "0")
 			os.Setenv("AC_DISABLE_INTERACTIVE", "1")
 
-			for _, conf := range []string{"worldserver", "playerbots"} {
-				if err := copyConfIfMissing(conf); err != nil {
-					return err
-				}
+			if err := copyConfIfMissing("worldserver.conf.dist"); err != nil {
+				return err
+			}
+			// module configs install/load from a "modules" subdirectory,
+			// unlike the app's own conf which sits directly in etc/
+			if err := copyConfIfMissing("modules/playerbots.conf.dist"); err != nil {
+				return err
 			}
 
 			binary, err := exec.LookPath("worldserver")
@@ -142,7 +146,7 @@ func dbimportCmd() *cli.Command {
 				os.Setenv("AC_MY_SQLEXECUTABLE", mysql)
 			}
 
-			if err := copyConfIfMissing("dbimport"); err != nil {
+			if err := copyConfIfMissing("dbimport.conf.dist"); err != nil {
 				return err
 			}
 
@@ -155,9 +159,12 @@ func dbimportCmd() *cli.Command {
 	}
 }
 
-func copyConfIfMissing(name string) error {
-	dst := filepath.Join("/azerothcore/env/dist/etc", name+".conf")
-	src := filepath.Join("/azerothcore/env/ref/etc", name+".conf.dist")
+// copyConfIfMissing copies relPath (a "*.conf.dist" file relative to
+// /azerothcore/env/ref/etc) to its "*.conf" counterpart under
+// /azerothcore/env/dist/etc, if the destination doesn't already exist.
+func copyConfIfMissing(relPath string) error {
+	src := filepath.Join("/azerothcore/env/ref/etc", relPath)
+	dst := filepath.Join("/azerothcore/env/dist/etc", strings.TrimSuffix(relPath, ".dist"))
 	if _, err := os.Stat(dst); err == nil {
 		return nil
 	}
@@ -166,6 +173,9 @@ func copyConfIfMissing(name string) error {
 		return err
 	}
 	defer in.Close()
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
