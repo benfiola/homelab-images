@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -147,6 +149,14 @@ func (i *Init) runMigrations(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	worldInfo, err := parseDBInfo(os.Getenv("AC_WORLD_DATABASE_INFO"))
+	if err != nil {
+		return err
+	}
+	charInfo, err := parseDBInfo(os.Getenv("AC_CHARACTER_DATABASE_INFO"))
+	if err != nil {
+		return err
+	}
 	pbInfo, err := parseDBInfo(os.Getenv("AC_PLAYERBOTS_DATABASE_INFO"))
 	if err != nil {
 		return err
@@ -179,11 +189,97 @@ func (i *Init) runMigrations(ctx context.Context) error {
 		return fmt.Errorf("dbimport: %w", err)
 	}
 
+	// dbimport doesn't create or populate the playerbots database - see
+	// https://github.com/mod-playerbots/mod-playerbots/wiki/Installation-Guide
+	if err := i.importPlayerbots(ctx, db, pbInfo, charInfo, worldInfo); err != nil {
+		return fmt.Errorf("import playerbots: %w", err)
+	}
+
 	if err := os.WriteFile(markerFile, nil, 0644); err != nil {
 		return fmt.Errorf("write marker: %w", err)
 	}
 
 	return nil
+}
+
+// importPlayerbots creates the playerbots database and imports the module's
+// characters/world SQL additions - none of this is handled by dbimport. See
+// https://github.com/mod-playerbots/mod-playerbots/wiki/Installation-Guide
+func (i *Init) importPlayerbots(ctx context.Context, db *sql.DB, pbInfo, charInfo, worldInfo *dbInfo) error {
+	logger := logging.FromContext(ctx)
+
+	logger.Info("creating playerbots database")
+	if _, err := db.ExecContext(ctx, "CREATE DATABASE IF NOT EXISTS `"+pbInfo.dbname+"` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"); err != nil {
+		return fmt.Errorf("create %s: %w", pbInfo.dbname, err)
+	}
+
+	mysql := os.Getenv("AC_MY_SQLEXECUTABLE")
+	if mysql == "" {
+		var err error
+		mysql, err = exec.LookPath("mysql")
+		if err != nil {
+			return fmt.Errorf("mysql client not found: set AC_MY_SQLEXECUTABLE")
+		}
+	}
+
+	imports := []struct {
+		info *dbInfo
+		dir  string
+	}{
+		{charInfo, "/azerothcore/modules/mod-playerbots/data/sql/characters/base"},
+		{worldInfo, "/azerothcore/modules/mod-playerbots/data/sql/world/base"},
+	}
+	for _, imp := range imports {
+		files, err := filepath.Glob(filepath.Join(imp.dir, "*.sql"))
+		if err != nil {
+			return fmt.Errorf("glob %s: %w", imp.dir, err)
+		}
+		sort.Strings(files)
+		for _, file := range files {
+			logger.Info("importing playerbots sql", "file", file, "database", imp.info.dbname)
+			if err := mysqlImport(ctx, mysql, imp.info, file); err != nil {
+				return fmt.Errorf("import %s: %w", file, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// mysqlImport pipes file into the mysql CLI against the database described
+// by info, matching how AzerothCore's own DBUpdater applies SQL files (a
+// temp --defaults-extra-file avoids leaking the password via argv/ps).
+func mysqlImport(ctx context.Context, mysqlBin string, info *dbInfo, file string) error {
+	in, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	optFile, err := os.CreateTemp("", "mysql-*.cnf")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(optFile.Name())
+	if _, err := fmt.Fprintf(optFile, "[client]\npassword=%s\n", info.pass); err != nil {
+		optFile.Close()
+		return err
+	}
+	if err := optFile.Close(); err != nil {
+		return err
+	}
+
+	c := exec.CommandContext(ctx, mysqlBin,
+		"--defaults-extra-file="+optFile.Name(),
+		"-h", info.host,
+		"-P", info.port,
+		"-u", info.user,
+		info.dbname,
+	)
+	c.Stdin = in
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return c.Run()
 }
 
 type config struct {
