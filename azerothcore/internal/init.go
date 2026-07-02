@@ -20,15 +20,17 @@ import (
 
 type Opts struct {
 	GameDataURL      string
-	DataDir          string
-	LogsDir          string
-	TempDir          string
-	LoginDB          string
-	WorldDB          string
-	CharacterDB      string
-	PlayerbotsDB     string
 	RealmlistAddress string
 	ConfigFile       string
+}
+
+// dataDir returns AC_DATA_DIR (AzerothCore's own config surface), defaulting
+// to "/data" to match authserver/worldserver/dbimport.
+func dataDir() string {
+	if v := os.Getenv("AC_DATA_DIR"); v != "" {
+		return v
+	}
+	return "/data"
 }
 
 type Init struct {
@@ -63,20 +65,21 @@ func (i *Init) Run(ctx context.Context) error {
 
 func (i *Init) downloadGameData(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
+	dataDir := dataDir()
 
-	markerFile := filepath.Join(i.opts.DataDir, ".game-data-version")
+	markerFile := filepath.Join(dataDir, ".game-data-version")
 	if existing, err := os.ReadFile(markerFile); err == nil {
 		if strings.TrimSpace(string(existing)) == i.opts.GameDataURL {
 			logger.Info("game data already present and up to date, skipping")
 			return nil
 		}
 		logger.Info("game data URL changed, re-downloading", "url", i.opts.GameDataURL)
-		if err := os.RemoveAll(i.opts.DataDir); err != nil {
+		if err := os.RemoveAll(dataDir); err != nil {
 			return fmt.Errorf("clean data dir: %w", err)
 		}
 	}
 
-	if err := os.MkdirAll(i.opts.DataDir, 0755); err != nil {
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return fmt.Errorf("create data dir: %w", err)
 	}
 
@@ -88,7 +91,7 @@ func (i *Init) downloadGameData(ctx context.Context) error {
 	defer os.Remove(tmpFile)
 
 	logger.Info("extracting")
-	if err := cmd.Stream(ctx, "bsdtar", "-xmf", tmpFile, "-C", i.opts.DataDir); err != nil {
+	if err := cmd.Stream(ctx, "bsdtar", "-xmf", tmpFile, "-C", dataDir); err != nil {
 		return fmt.Errorf("extract: %w", err)
 	}
 
@@ -102,7 +105,7 @@ func (i *Init) downloadGameData(ctx context.Context) error {
 func (i *Init) waitForDB(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
 
-	info, err := parseDBInfo(i.opts.LoginDB)
+	info, err := parseDBInfo(os.Getenv("AC_LOGIN_DATABASE_INFO"))
 	if err != nil {
 		return err
 	}
@@ -134,17 +137,17 @@ func (i *Init) waitForDB(ctx context.Context) error {
 func (i *Init) runMigrations(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
 
-	markerFile := filepath.Join(i.opts.DataDir, ".ac-migrated")
+	markerFile := filepath.Join(dataDir(), ".ac-migrated")
 	if _, err := os.Stat(markerFile); err == nil {
 		logger.Info("migrations already complete, skipping")
 		return nil
 	}
 
-	info, err := parseDBInfo(i.opts.LoginDB)
+	info, err := parseDBInfo(os.Getenv("AC_LOGIN_DATABASE_INFO"))
 	if err != nil {
 		return err
 	}
-	pbInfo, err := parseDBInfo(i.opts.PlayerbotsDB)
+	pbInfo, err := parseDBInfo(os.Getenv("AC_PLAYERBOTS_DATABASE_INFO"))
 	if err != nil {
 		return err
 	}
@@ -163,15 +166,16 @@ func (i *Init) runMigrations(ctx context.Context) error {
 	}
 
 	logger.Info("running dbimport")
-	if err := cmd.Stream(ctx, "azerothcore", "dbimport",
-		"--login-db", i.opts.LoginDB,
-		"--world-db", i.opts.WorldDB,
-		"--character-db", i.opts.CharacterDB,
-		"--playerbots-db", i.opts.PlayerbotsDB,
-		"--data-dir", i.opts.DataDir,
-		"--logs-dir", i.opts.LogsDir,
-		"--temp-dir", i.opts.TempDir,
-	); err != nil {
+	self, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("find self: %w", err)
+	}
+	// shell out to our own "dbimport" subcommand rather than the AzerothCore
+	// binary directly, so flag defaults/handling stay in one place; DB
+	// connection info and dirs are AzerothCore's own config surface and are
+	// inherited by the subprocess from the environment rather than passed
+	// explicitly
+	if err := cmd.Stream(ctx, self, "dbimport"); err != nil {
 		return fmt.Errorf("dbimport: %w", err)
 	}
 
@@ -195,7 +199,7 @@ type accountConfig struct {
 func (i *Init) initializeServer(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
 
-	info, err := parseDBInfo(i.opts.LoginDB)
+	info, err := parseDBInfo(os.Getenv("AC_LOGIN_DATABASE_INFO"))
 	if err != nil {
 		return err
 	}
@@ -365,4 +369,3 @@ func (d *dbInfo) dsn() string {
 func (d *dbInfo) adminDSN() string {
 	return fmt.Sprintf("%s:%s@tcp(%s:%s)/", d.user, d.pass, d.host, d.port)
 }
-

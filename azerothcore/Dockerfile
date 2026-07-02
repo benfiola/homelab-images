@@ -32,6 +32,7 @@ mkdir -p \
     /tmp/azerothcore
 
 chown acore:acore \
+    /azerothcore \
     /azerothcore/env/dist/etc \
     /config \
     /data \
@@ -47,5 +48,7 @@ COPY --from=azerothcore-base /azerothcore/modules/      /azerothcore/modules/
 COPY .build/azerothcore_linux_${TARGETARCH} /usr/bin/azerothcore
 
 USER acore
+
+WORKDIR /azerothcore
 
 ENTRYPOINT ["/usr/bin/azerothcore"]

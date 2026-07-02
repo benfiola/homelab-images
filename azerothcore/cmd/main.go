@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -28,6 +29,14 @@ func main() {
 	)
 }
 
+// setDefaultEnv sets key to def unless it's already present in the
+// environment.
+func setDefaultEnv(key, def string) {
+	if os.Getenv(key) == "" {
+		os.Setenv(key, def)
+	}
+}
+
 func initCmd() *cli.Command {
 	return &cli.Command{
 		Name: "init",
@@ -36,41 +45,6 @@ func initCmd() *cli.Command {
 				Name:     "game-data-url",
 				Required: true,
 				Sources:  cli.EnvVars("AC_GAME_DATA_URL"),
-			},
-			&cli.StringFlag{
-				Name:    "data-dir",
-				Sources: cli.EnvVars("AC_DATA_DIR"),
-				Value:   "/data",
-			},
-			&cli.StringFlag{
-				Name:    "logs-dir",
-				Sources: cli.EnvVars("AC_LOGS_DIR"),
-				Value:   "/logs",
-			},
-			&cli.StringFlag{
-				Name:    "temp-dir",
-				Sources: cli.EnvVars("AC_TEMP_DIR"),
-				Value:   "/tmp/azerothcore",
-			},
-			&cli.StringFlag{
-				Name:     "login-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_LOGIN_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:     "world-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_WORLD_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:     "character-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_CHARACTER_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:     "playerbots-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_PLAYERBOTS_DATABASE_INFO"),
 			},
 			&cli.StringFlag{
 				Name:    "realmlist-address",
@@ -85,13 +59,6 @@ func initCmd() *cli.Command {
 		Action: func(ctx context.Context, c *cli.Command) error {
 			i, err := internal.New(&internal.Opts{
 				GameDataURL:      c.String("game-data-url"),
-				DataDir:          c.String("data-dir"),
-				LogsDir:          c.String("logs-dir"),
-				TempDir:          c.String("temp-dir"),
-				LoginDB:          c.String("login-db"),
-				WorldDB:          c.String("world-db"),
-				CharacterDB:      c.String("character-db"),
-				PlayerbotsDB:     c.String("playerbots-db"),
 				RealmlistAddress: c.String("realmlist-address"),
 				ConfigFile:       c.String("config"),
 			})
@@ -106,33 +73,13 @@ func initCmd() *cli.Command {
 func authserverCmd() *cli.Command {
 	return &cli.Command{
 		Name: "authserver",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "login-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_LOGIN_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:    "data-dir",
-				Sources: cli.EnvVars("AC_DATA_DIR"),
-				Value:   "/data",
-			},
-			&cli.StringFlag{
-				Name:    "logs-dir",
-				Sources: cli.EnvVars("AC_LOGS_DIR"),
-				Value:   "/logs",
-			},
-			&cli.StringFlag{
-				Name:    "temp-dir",
-				Sources: cli.EnvVars("AC_TEMP_DIR"),
-				Value:   "/tmp/azerothcore",
-			},
-		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			os.Setenv("AC_LOGIN_DATABASE_INFO", c.String("login-db"))
-			os.Setenv("AC_DATA_DIR", c.String("data-dir"))
-			os.Setenv("AC_LOGS_DIR", c.String("logs-dir"))
-			os.Setenv("AC_TEMP_DIR", c.String("temp-dir"))
+			setDefaultEnv("AC_DATA_DIR", "/data")
+			setDefaultEnv("AC_LOGS_DIR", "/logs")
+			setDefaultEnv("AC_TEMP_DIR", "/tmp/azerothcore")
+			// migrations are the init step's responsibility (via dbimport)
+			os.Setenv("AC_UPDATES_ENABLE_DATABASES", "0")
+			os.Setenv("AC_DISABLE_INTERACTIVE", "1")
 
 			if err := copyConfIfMissing("authserver"); err != nil {
 				return err
@@ -150,51 +97,13 @@ func authserverCmd() *cli.Command {
 func worldserverCmd() *cli.Command {
 	return &cli.Command{
 		Name: "worldserver",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "login-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_LOGIN_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:     "world-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_WORLD_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:     "character-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_CHARACTER_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:     "playerbots-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_PLAYERBOTS_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:    "data-dir",
-				Sources: cli.EnvVars("AC_DATA_DIR"),
-				Value:   "/data",
-			},
-			&cli.StringFlag{
-				Name:    "logs-dir",
-				Sources: cli.EnvVars("AC_LOGS_DIR"),
-				Value:   "/logs",
-			},
-			&cli.StringFlag{
-				Name:    "temp-dir",
-				Sources: cli.EnvVars("AC_TEMP_DIR"),
-				Value:   "/tmp/azerothcore",
-			},
-		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			os.Setenv("AC_LOGIN_DATABASE_INFO", c.String("login-db"))
-			os.Setenv("AC_WORLD_DATABASE_INFO", c.String("world-db"))
-			os.Setenv("AC_CHARACTER_DATABASE_INFO", c.String("character-db"))
-			os.Setenv("AC_PLAYERBOTS_DATABASE_INFO", c.String("playerbots-db"))
-			os.Setenv("AC_DATA_DIR", c.String("data-dir"))
-			os.Setenv("AC_LOGS_DIR", c.String("logs-dir"))
-			os.Setenv("AC_TEMP_DIR", c.String("temp-dir"))
+			setDefaultEnv("AC_DATA_DIR", "/data")
+			setDefaultEnv("AC_LOGS_DIR", "/logs")
+			setDefaultEnv("AC_TEMP_DIR", "/tmp/azerothcore")
+			// migrations are the init step's responsibility (via dbimport)
+			os.Setenv("AC_UPDATES_ENABLE_DATABASES", "0")
+			os.Setenv("AC_DISABLE_INTERACTIVE", "1")
 
 			for _, conf := range []string{"worldserver", "playerbots"} {
 				if err := copyConfIfMissing(conf); err != nil {
@@ -214,51 +123,24 @@ func worldserverCmd() *cli.Command {
 func dbimportCmd() *cli.Command {
 	return &cli.Command{
 		Name: "dbimport",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "login-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_LOGIN_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:     "world-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_WORLD_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:     "character-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_CHARACTER_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:     "playerbots-db",
-				Required: true,
-				Sources:  cli.EnvVars("AC_PLAYERBOTS_DATABASE_INFO"),
-			},
-			&cli.StringFlag{
-				Name:    "data-dir",
-				Sources: cli.EnvVars("AC_DATA_DIR"),
-				Value:   "/data",
-			},
-			&cli.StringFlag{
-				Name:    "logs-dir",
-				Sources: cli.EnvVars("AC_LOGS_DIR"),
-				Value:   "/logs",
-			},
-			&cli.StringFlag{
-				Name:    "temp-dir",
-				Sources: cli.EnvVars("AC_TEMP_DIR"),
-				Value:   "/tmp/azerothcore",
-			},
-		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			os.Setenv("AC_LOGIN_DATABASE_INFO", c.String("login-db"))
-			os.Setenv("AC_WORLD_DATABASE_INFO", c.String("world-db"))
-			os.Setenv("AC_CHARACTER_DATABASE_INFO", c.String("character-db"))
-			os.Setenv("AC_PLAYERBOTS_DATABASE_INFO", c.String("playerbots-db"))
-			os.Setenv("AC_DATA_DIR", c.String("data-dir"))
-			os.Setenv("AC_LOGS_DIR", c.String("logs-dir"))
-			os.Setenv("AC_TEMP_DIR", c.String("temp-dir"))
+			setDefaultEnv("AC_DATA_DIR", "/data")
+			setDefaultEnv("AC_LOGS_DIR", "/logs")
+			setDefaultEnv("AC_TEMP_DIR", "/tmp/azerothcore")
+
+			// dbimport bakes its mysql client path in at compile time (via
+			// cmake's find_program) when creating a database - override it so
+			// runtime behavior doesn't depend on what the build environment
+			// happened to find.
+			mysql := os.Getenv("AC_MY_SQLEXECUTABLE")
+			if mysql == "" {
+				var err error
+				mysql, err = exec.LookPath("mysql")
+				if err != nil {
+					return fmt.Errorf("mysql client not found: set AC_MY_SQLEXECUTABLE")
+				}
+				os.Setenv("AC_MY_SQLEXECUTABLE", mysql)
+			}
 
 			if err := copyConfIfMissing("dbimport"); err != nil {
 				return err
