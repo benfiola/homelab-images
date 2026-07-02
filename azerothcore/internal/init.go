@@ -169,7 +169,7 @@ func (i *Init) runMigrations(ctx context.Context) error {
 	defer db.Close()
 
 	logger.Info("dropping existing databases")
-	for _, dbname := range []string{"acore_auth", "acore_characters", "acore_world", pbInfo.dbname} {
+	for _, dbname := range []string{info.dbname, charInfo.dbname, worldInfo.dbname, pbInfo.dbname} {
 		if _, err := db.ExecContext(ctx, "DROP DATABASE IF EXISTS `"+dbname+"`"); err != nil {
 			return fmt.Errorf("drop %s: %w", dbname, err)
 		}
