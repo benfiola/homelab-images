@@ -189,10 +189,41 @@ func (i *Init) runMigrations(ctx context.Context) error {
 		return fmt.Errorf("dbimport: %w", err)
 	}
 
-	// dbimport doesn't create or populate the playerbots database - see
+	// dbimport has no knowledge of the playerbots database at all - it's a
+	// 4th database. See
 	// https://github.com/mod-playerbots/mod-playerbots/wiki/Installation-Guide
-	if err := i.importPlayerbots(ctx, db, pbInfo, charInfo, worldInfo); err != nil {
-		return fmt.Errorf("import playerbots: %w", err)
+	if err := createPlayerbotsDatabase(ctx, db, pbInfo); err != nil {
+		return fmt.Errorf("create playerbots database: %w", err)
+	}
+
+	// dbimport applies core's base dump and every module's data/sql/<name>/base
+	// sql (any naming) as one alphabetically-sorted batch, so a module's
+	// override of an existing core row can be clobbered by a core base file
+	// sorting after it. Re-apply each module's base sql here, guaranteed to
+	// run last, so overrides stick.
+	mysql, err := mysqlExecutable()
+	if err != nil {
+		return err
+	}
+	dbs := []struct {
+		name string // matches modules/*/data/sql/<name>
+		info *dbInfo
+	}{
+		{"world", worldInfo},
+		{"characters", charInfo},
+		{"auth", info},
+	}
+	for _, d := range dbs {
+		dirs, err := filepath.Glob(filepath.Join("/azerothcore/modules/*/data/sql", d.name, "base"))
+		if err != nil {
+			return fmt.Errorf("glob %s: %w", d.name, err)
+		}
+		sort.Strings(dirs)
+		for _, dir := range dirs {
+			if err := importModuleSQLDir(ctx, mysql, d.info, dir); err != nil {
+				return fmt.Errorf("import %s: %w", dir, err)
+			}
+		}
 	}
 
 	if err := os.WriteFile(markerFile, nil, 0644); err != nil {
@@ -202,47 +233,45 @@ func (i *Init) runMigrations(ctx context.Context) error {
 	return nil
 }
 
-// importPlayerbots creates the playerbots database and imports the module's
-// characters/world SQL additions - none of this is handled by dbimport. See
+// createPlayerbotsDatabase creates the playerbots database - dbimport has no
+// knowledge of this 4th database at all. See
 // https://github.com/mod-playerbots/mod-playerbots/wiki/Installation-Guide
-func (i *Init) importPlayerbots(ctx context.Context, db *sql.DB, pbInfo, charInfo, worldInfo *dbInfo) error {
+func createPlayerbotsDatabase(ctx context.Context, db *sql.DB, pbInfo *dbInfo) error {
 	logger := logging.FromContext(ctx)
-
 	logger.Info("creating playerbots database")
 	if _, err := db.ExecContext(ctx, "CREATE DATABASE IF NOT EXISTS `"+pbInfo.dbname+"` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"); err != nil {
 		return fmt.Errorf("create %s: %w", pbInfo.dbname, err)
 	}
+	return nil
+}
 
-	mysql := os.Getenv("AC_MY_SQLEXECUTABLE")
-	if mysql == "" {
-		var err error
-		mysql, err = exec.LookPath("mysql")
-		if err != nil {
-			return fmt.Errorf("mysql client not found: set AC_MY_SQLEXECUTABLE")
+// mysqlExecutable resolves the mysql client binary, honoring
+// AC_MY_SQLEXECUTABLE if set (matching dbimport's own resolution).
+func mysqlExecutable() (string, error) {
+	if mysql := os.Getenv("AC_MY_SQLEXECUTABLE"); mysql != "" {
+		return mysql, nil
+	}
+	mysql, err := exec.LookPath("mysql")
+	if err != nil {
+		return "", fmt.Errorf("mysql client not found: set AC_MY_SQLEXECUTABLE")
+	}
+	return mysql, nil
+}
+
+// importModuleSQLDir applies every *.sql file in dir (sorted) against db.
+func importModuleSQLDir(ctx context.Context, mysqlBin string, info *dbInfo, dir string) error {
+	logger := logging.FromContext(ctx)
+	files, err := filepath.Glob(filepath.Join(dir, "*.sql"))
+	if err != nil {
+		return fmt.Errorf("glob %s: %w", dir, err)
+	}
+	sort.Strings(files)
+	for _, file := range files {
+		logger.Info("importing module sql", "file", file, "database", info.dbname)
+		if err := mysqlImport(ctx, mysqlBin, info, file); err != nil {
+			return fmt.Errorf("import %s: %w", file, err)
 		}
 	}
-
-	imports := []struct {
-		info *dbInfo
-		dir  string
-	}{
-		{charInfo, "/azerothcore/modules/mod-playerbots/data/sql/characters/base"},
-		{worldInfo, "/azerothcore/modules/mod-playerbots/data/sql/world/base"},
-	}
-	for _, imp := range imports {
-		files, err := filepath.Glob(filepath.Join(imp.dir, "*.sql"))
-		if err != nil {
-			return fmt.Errorf("glob %s: %w", imp.dir, err)
-		}
-		sort.Strings(files)
-		for _, file := range files {
-			logger.Info("importing playerbots sql", "file", file, "database", imp.info.dbname)
-			if err := mysqlImport(ctx, mysql, imp.info, file); err != nil {
-				return fmt.Errorf("import %s: %w", file, err)
-			}
-		}
-	}
-
 	return nil
 }
 

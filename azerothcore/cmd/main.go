@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,7 +83,7 @@ func authserverCmd() *cli.Command {
 			os.Setenv("AC_UPDATES_ENABLE_DATABASES", "0")
 			os.Setenv("AC_DISABLE_INTERACTIVE", "1")
 
-			if err := copyConfIfMissing("authserver.conf.dist"); err != nil {
+			if err := copyAllConfsIfMissing(); err != nil {
 				return err
 			}
 
@@ -106,12 +107,7 @@ func worldserverCmd() *cli.Command {
 			os.Setenv("AC_UPDATES_ENABLE_DATABASES", "0")
 			os.Setenv("AC_DISABLE_INTERACTIVE", "1")
 
-			if err := copyConfIfMissing("worldserver.conf.dist"); err != nil {
-				return err
-			}
-			// module configs install/load from a "modules" subdirectory,
-			// unlike the app's own conf which sits directly in etc/
-			if err := copyConfIfMissing("modules/playerbots.conf.dist"); err != nil {
+			if err := copyAllConfsIfMissing(); err != nil {
 				return err
 			}
 
@@ -146,7 +142,7 @@ func dbimportCmd() *cli.Command {
 				os.Setenv("AC_MY_SQLEXECUTABLE", mysql)
 			}
 
-			if err := copyConfIfMissing("dbimport.conf.dist"); err != nil {
+			if err := copyAllConfsIfMissing(); err != nil {
 				return err
 			}
 
@@ -157,6 +153,25 @@ func dbimportCmd() *cli.Command {
 			return syscall.Exec(binary, []string{"dbimport"}, os.Environ())
 		},
 	}
+}
+
+// copyAllConfsIfMissing copies every "*.conf.dist" file under
+// /azerothcore/env/ref/etc to its "*.conf" counterpart, if missing.
+func copyAllConfsIfMissing() error {
+	root := "/azerothcore/env/ref/etc"
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".conf.dist") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		return copyConfIfMissing(rel)
+	})
 }
 
 // copyConfIfMissing copies relPath (a "*.conf.dist" file relative to
