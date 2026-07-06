@@ -196,32 +196,41 @@ func (i *Init) runMigrations(ctx context.Context) error {
 		return fmt.Errorf("create playerbots database: %w", err)
 	}
 
-	// dbimport applies core's base dump and every module's data/sql/<name>/base
-	// sql (any naming) as one alphabetically-sorted batch, so a module's
-	// override of an existing core row can be clobbered by a core base file
-	// sorting after it. Re-apply each module's base sql here, guaranteed to
-	// run last, so overrides stick.
+	// dbimport applies core's base dump and every module's sql (matched the
+	// same way it matches it: any modules/*/data/sql/<dir> whose name
+	// contains "world"/"characters"/"auth" as a substring, any nesting) as
+	// one alphabetically-sorted batch, so a module's override of an
+	// existing core row can be clobbered by a core base file sorting after
+	// it. Re-apply each module's sql here, guaranteed to run last, so
+	// overrides stick.
 	mysql, err := mysqlExecutable()
 	if err != nil {
 		return err
 	}
 	dbs := []struct {
-		name string // matches modules/*/data/sql/<name>
+		name string // substring matched against modules/*/data/sql/<dir>
 		info *dbInfo
 	}{
 		{"world", worldInfo},
 		{"characters", charInfo},
 		{"auth", info},
 	}
-	for _, d := range dbs {
-		dirs, err := filepath.Glob(filepath.Join("/azerothcore/modules/*/data/sql", d.name, "base"))
-		if err != nil {
-			return fmt.Errorf("glob %s: %w", d.name, err)
+	modDirs, err := filepath.Glob("/azerothcore/modules/*/data/sql/*")
+	if err != nil {
+		return fmt.Errorf("glob module sql dirs: %w", err)
+	}
+	sort.Strings(modDirs)
+	for _, modDir := range modDirs {
+		if fi, err := os.Stat(modDir); err != nil || !fi.IsDir() {
+			continue
 		}
-		sort.Strings(dirs)
-		for _, dir := range dirs {
-			if err := importModuleSQLDir(ctx, mysql, d.info, dir); err != nil {
-				return fmt.Errorf("import %s: %w", dir, err)
+		name := filepath.Base(modDir)
+		for _, d := range dbs {
+			if !strings.Contains(name, d.name) {
+				continue
+			}
+			if err := importModuleSQLTree(ctx, mysql, d.info, modDir); err != nil {
+				return fmt.Errorf("import %s: %w", modDir, err)
 			}
 		}
 	}
@@ -258,12 +267,21 @@ func mysqlExecutable() (string, error) {
 	return mysql, nil
 }
 
-// importModuleSQLDir applies every *.sql file in dir (sorted) against db.
-func importModuleSQLDir(ctx context.Context, mysqlBin string, info *dbInfo, dir string) error {
+// importModuleSQLTree applies every *.sql file under dir, any depth, sorted.
+func importModuleSQLTree(ctx context.Context, mysqlBin string, info *dbInfo, dir string) error {
 	logger := logging.FromContext(ctx)
-	files, err := filepath.Glob(filepath.Join(dir, "*.sql"))
+	var files []string
+	err := filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !fi.IsDir() && strings.HasSuffix(path, ".sql") {
+			files = append(files, path)
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("glob %s: %w", dir, err)
+		return fmt.Errorf("walk %s: %w", dir, err)
 	}
 	sort.Strings(files)
 	for _, file := range files {
