@@ -1,4 +1,4 @@
-ARG AZEROTHCORE_BASE=ghcr.io/benfiola/homelab-images/azerothcore-base:1.0.2
+ARG AZEROTHCORE_BASE=ghcr.io/benfiola/homelab-images/azerothcore-base:1.1.0
 FROM ${AZEROTHCORE_BASE} AS azerothcore-base
 
 FROM ubuntu:24.04
