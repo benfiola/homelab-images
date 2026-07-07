@@ -57,12 +57,18 @@ func initCmd() *cli.Command {
 				Sources: cli.EnvVars("AC_CONFIG"),
 				Value:   "/config/config.yaml",
 			},
+			&cli.StringFlag{
+				Name:    "random-bot-account-prefix",
+				Sources: cli.EnvVars("AC_RANDOM_BOT_ACCOUNT_PREFIX"),
+				Value:   "RNDBOT",
+			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			i, err := internal.New(&internal.Opts{
-				GameDataURL:      c.String("game-data-url"),
-				RealmlistAddress: c.String("realmlist-address"),
-				ConfigFile:       c.String("config"),
+				GameDataURL:            c.String("game-data-url"),
+				RealmlistAddress:       c.String("realmlist-address"),
+				ConfigFile:             c.String("config"),
+				RandomBotAccountPrefix: c.String("random-bot-account-prefix"),
 			})
 			if err != nil {
 				return err

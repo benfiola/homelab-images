@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -21,9 +19,10 @@ import (
 )
 
 type Opts struct {
-	GameDataURL      string
-	RealmlistAddress string
-	ConfigFile       string
+	GameDataURL            string
+	RealmlistAddress       string
+	ConfigFile             string
+	RandomBotAccountPrefix string
 }
 
 // dataDir returns AC_DATA_DIR (AzerothCore's own config surface), defaulting
@@ -139,42 +138,6 @@ func (i *Init) waitForDB(ctx context.Context) error {
 func (i *Init) runMigrations(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
 
-	markerFile := filepath.Join(dataDir(), ".ac-migrated")
-	if _, err := os.Stat(markerFile); err == nil {
-		logger.Info("migrations already complete, skipping")
-		return nil
-	}
-
-	info, err := parseDBInfo(os.Getenv("AC_LOGIN_DATABASE_INFO"))
-	if err != nil {
-		return err
-	}
-	worldInfo, err := parseDBInfo(os.Getenv("AC_WORLD_DATABASE_INFO"))
-	if err != nil {
-		return err
-	}
-	charInfo, err := parseDBInfo(os.Getenv("AC_CHARACTER_DATABASE_INFO"))
-	if err != nil {
-		return err
-	}
-	pbInfo, err := parseDBInfo(os.Getenv("AC_PLAYERBOTS_DATABASE_INFO"))
-	if err != nil {
-		return err
-	}
-
-	db, err := sql.Open("mysql", info.adminDSN())
-	if err != nil {
-		return fmt.Errorf("open: %w", err)
-	}
-	defer db.Close()
-
-	logger.Info("dropping existing databases")
-	for _, dbname := range []string{info.dbname, charInfo.dbname, worldInfo.dbname, pbInfo.dbname} {
-		if _, err := db.ExecContext(ctx, "DROP DATABASE IF EXISTS `"+dbname+"`"); err != nil {
-			return fmt.Errorf("drop %s: %w", dbname, err)
-		}
-	}
-
 	logger.Info("running dbimport")
 	self, err := os.Executable()
 	if err != nil {
@@ -189,144 +152,7 @@ func (i *Init) runMigrations(ctx context.Context) error {
 		return fmt.Errorf("dbimport: %w", err)
 	}
 
-	// dbimport has no knowledge of the playerbots database at all - it's a
-	// 4th database. See
-	// https://github.com/mod-playerbots/mod-playerbots/wiki/Installation-Guide
-	if err := createPlayerbotsDatabase(ctx, db, pbInfo); err != nil {
-		return fmt.Errorf("create playerbots database: %w", err)
-	}
-
-	// dbimport applies core's base dump and every module's sql (matched the
-	// same way it matches it: any modules/*/data/sql/<dir> whose name
-	// contains "world"/"characters"/"auth" as a substring, any nesting) as
-	// one alphabetically-sorted batch, so a module's override of an
-	// existing core row can be clobbered by a core base file sorting after
-	// it. Re-apply each module's sql here, guaranteed to run last, so
-	// overrides stick.
-	mysql, err := mysqlExecutable()
-	if err != nil {
-		return err
-	}
-	dbs := []struct {
-		name string // substring matched against modules/*/data/sql/<dir>
-		info *dbInfo
-	}{
-		{"world", worldInfo},
-		{"characters", charInfo},
-		{"auth", info},
-	}
-	modDirs, err := filepath.Glob("/azerothcore/modules/*/data/sql/*")
-	if err != nil {
-		return fmt.Errorf("glob module sql dirs: %w", err)
-	}
-	sort.Strings(modDirs)
-	for _, modDir := range modDirs {
-		if fi, err := os.Stat(modDir); err != nil || !fi.IsDir() {
-			continue
-		}
-		name := filepath.Base(modDir)
-		for _, d := range dbs {
-			if !strings.Contains(name, d.name) {
-				continue
-			}
-			if err := importModuleSQLTree(ctx, mysql, d.info, modDir); err != nil {
-				return fmt.Errorf("import %s: %w", modDir, err)
-			}
-		}
-	}
-
-	if err := os.WriteFile(markerFile, nil, 0644); err != nil {
-		return fmt.Errorf("write marker: %w", err)
-	}
-
 	return nil
-}
-
-// createPlayerbotsDatabase creates the playerbots database - dbimport has no
-// knowledge of this 4th database at all. See
-// https://github.com/mod-playerbots/mod-playerbots/wiki/Installation-Guide
-func createPlayerbotsDatabase(ctx context.Context, db *sql.DB, pbInfo *dbInfo) error {
-	logger := logging.FromContext(ctx)
-	logger.Info("creating playerbots database")
-	if _, err := db.ExecContext(ctx, "CREATE DATABASE IF NOT EXISTS `"+pbInfo.dbname+"` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"); err != nil {
-		return fmt.Errorf("create %s: %w", pbInfo.dbname, err)
-	}
-	return nil
-}
-
-// mysqlExecutable resolves the mysql client binary, honoring
-// AC_MY_SQLEXECUTABLE if set (matching dbimport's own resolution).
-func mysqlExecutable() (string, error) {
-	if mysql := os.Getenv("AC_MY_SQLEXECUTABLE"); mysql != "" {
-		return mysql, nil
-	}
-	mysql, err := exec.LookPath("mysql")
-	if err != nil {
-		return "", fmt.Errorf("mysql client not found: set AC_MY_SQLEXECUTABLE")
-	}
-	return mysql, nil
-}
-
-// importModuleSQLTree applies every *.sql file under dir, any depth, sorted.
-func importModuleSQLTree(ctx context.Context, mysqlBin string, info *dbInfo, dir string) error {
-	logger := logging.FromContext(ctx)
-	var files []string
-	err := filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !fi.IsDir() && strings.HasSuffix(path, ".sql") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("walk %s: %w", dir, err)
-	}
-	sort.Strings(files)
-	for _, file := range files {
-		logger.Info("importing module sql", "file", file, "database", info.dbname)
-		if err := mysqlImport(ctx, mysqlBin, info, file); err != nil {
-			return fmt.Errorf("import %s: %w", file, err)
-		}
-	}
-	return nil
-}
-
-// mysqlImport pipes file into the mysql CLI against the database described
-// by info, matching how AzerothCore's own DBUpdater applies SQL files (a
-// temp --defaults-extra-file avoids leaking the password via argv/ps).
-func mysqlImport(ctx context.Context, mysqlBin string, info *dbInfo, file string) error {
-	in, err := os.Open(file)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	optFile, err := os.CreateTemp("", "mysql-*.cnf")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(optFile.Name())
-	if _, err := fmt.Fprintf(optFile, "[client]\npassword=%s\n", info.pass); err != nil {
-		optFile.Close()
-		return err
-	}
-	if err := optFile.Close(); err != nil {
-		return err
-	}
-
-	c := exec.CommandContext(ctx, mysqlBin,
-		"--defaults-extra-file="+optFile.Name(),
-		"-h", info.host,
-		"-P", info.port,
-		"-u", info.user,
-		info.dbname,
-	)
-	c.Stdin = in
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
 }
 
 type config struct {
@@ -398,12 +224,21 @@ func (i *Init) initializeServer(ctx context.Context) error {
 		return fmt.Errorf("iterate accounts: %w", err)
 	}
 
+	// mod-playerbots creates its own accounts at runtime (e.g. "RNDBOT0")
+	// that never appear in our config - they're not stale, just unmanaged,
+	// so leave them alone rather than deleting them out from under the mod.
+	botPrefix := strings.ToUpper(i.opts.RandomBotAccountPrefix)
+
 	for _, username := range existing {
-		if !desired[username] {
-			logger.Info("deleting stale account", "username", username)
-			if _, err := db.ExecContext(ctx, "DELETE FROM account WHERE username = ?", username); err != nil {
-				return fmt.Errorf("delete account %s: %w", username, err)
-			}
+		if desired[username] {
+			continue
+		}
+		if botPrefix != "" && strings.HasPrefix(username, botPrefix) {
+			continue
+		}
+		logger.Info("deleting stale account", "username", username)
+		if _, err := db.ExecContext(ctx, "DELETE FROM account WHERE username = ?", username); err != nil {
+			return fmt.Errorf("delete account %s: %w", username, err)
 		}
 	}
 
