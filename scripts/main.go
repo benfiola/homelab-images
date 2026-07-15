@@ -408,17 +408,21 @@ func getNextVersion() {
 	bumpType := getVersionBumpFromCommits(component)
 
 	// Build svu command flags
+	svuCmd := "next"
+	if bumpType != "" {
+		svuCmd = bumpType
+	}
+
 	svuArgs := []string{
-		"next",
+		svuCmd,
 		fmt.Sprintf("--tag.prefix=%s/v", component),
 		fmt.Sprintf("--tag.pattern=%s/v*", component),
 		"--tag.output=v",
-		"--always=true",
 	}
 
-	// Set the bump type based on commit analysis
-	if bumpType != "" {
-		svuArgs = append(svuArgs, fmt.Sprintf("--bump=%s", bumpType))
+	// Only use --always and --log.directory with 'next' command
+	if svuCmd == "next" {
+		svuArgs = append(svuArgs, "--always", fmt.Sprintf("--log.directory=%s,../shared", component))
 	}
 
 	if rc != "" {
@@ -434,6 +438,7 @@ func getNextVersion() {
 	cmd := exec.Command("svu", svuArgs...)
 	output, err := cmd.Output()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: svu failed: %v (command: svu %s)\n", err, strings.Join(svuArgs, " "))
 		// Emit bootstrap version with prerelease/metadata if needed
 		version := "v1.0.0"
 		if rc != "" {
@@ -481,32 +486,40 @@ func getVersionBumpFromCommits(component string) string {
 		}
 
 		lines := strings.Split(msg, "\n")
-		firstLine := lines[0]
 
-		matches := scopeRegex.FindStringSubmatch(firstLine)
-		if len(matches) >= 3 {
-			commitType := matches[1]
-			commitComponent := matches[2]
+		// Check all lines for matching component scope
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			matches := scopeRegex.FindStringSubmatch(line)
+			if len(matches) >= 3 {
+				commitType := matches[1]
+				commitComponent := matches[2]
 
-			if commitComponent != component {
-				continue
-			}
+				if commitComponent != component {
+					continue
+				}
 
-			if len(matches) >= 4 && matches[3] == "!" {
-				hasBreakingChange = true
-			}
+				if len(matches) >= 4 && matches[3] == "!" {
+					hasBreakingChange = true
+				}
 
-			if commitType == "feat" {
-				hasFeature = true
-			}
+				if commitType == "feat" {
+					hasFeature = true
+				}
 
-			if hasBreakingChange {
-				break
+				if hasBreakingChange {
+					break
+				}
 			}
 		}
 
-		for _, line := range lines[1:] {
-			if strings.HasPrefix(line, "BREAKING CHANGE:") {
+		if hasBreakingChange {
+			break
+		}
+
+		// Also check for BREAKING CHANGE footer
+		for _, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "BREAKING CHANGE:") {
 				hasBreakingChange = true
 				break
 			}
