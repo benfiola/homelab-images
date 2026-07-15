@@ -14,12 +14,13 @@ spec:
     spec:
       containers:
         - env:
-            - name: ENCRYPTION_KEY
-              value: {{ required "config.encryptionKey is required" .Values.config.encryptionKey }}
-            - name: GCS_CREDENTIALS
-              value: /storage-secrets/credentials
-            - name: GCS_DESTINATION
-              value: {{ required "config.gcsDestination is required" .Values.config.gcsDestination }}
+            - name: BITWARDEN_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "config.bitwardenAccessTokenSecret is required" .Values.config.bitwardenAccessTokenSecret }}
+                  key: {{ required "config.bitwardenAccessTokenKey is required" .Values.config.bitwardenAccessTokenKey }}
+            - name: BITWARDEN_SECRET_ID
+              value: {{ required "config.bitwardenSecretId is required" .Values.config.bitwardenSecretId }}
             - name: LOG_LEVEL
               value: {{ .Values.config.logLevel }}
             - name: VAULT_ADDR
@@ -51,7 +52,7 @@ spec:
             periodSeconds: 10
           {{- if .Values.deployment.resources }}
           resources: {{ .Values.deployment.resources | toYaml | nindent 10 }}
-          {{- end }}          
+          {{- end }}
           securityContext:
             seccompProfile:
               type: RuntimeDefault
@@ -63,14 +64,4 @@ spec:
               drop:
                 - ALL
             privileged: false
-          volumeMounts:
-            - name: storage-secrets
-              mountPath: /storage-secrets
       serviceAccountName: {{ include "vault-push-secrets.serviceAccountName" . }}
-      volumes:
-        - name: storage-secrets
-          secret:
-            secretName: {{ required "config.gcsCredentialsSecret is required" .Values.config.gcsCredentialsSecret  }}
-            items:
-              - key: {{ required "config.gcsCredentialsKey is required" .Values.config.gcsCredentialsKey  }}
-                path: credentials

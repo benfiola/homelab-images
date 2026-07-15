@@ -1,8 +1,7 @@
 config:
-  encryptionKey: ""
-  gcsCredentialsKey: ""
-  gcsCredentialsSecret: ""
-  gcsDestination: ""
+  bitwardenAccessTokenSecret: ""
+  bitwardenAccessTokenKey: ""
+  bitwardenSecretId: ""
   logLevel: "info"
   vaultAuthMount: ""
   vaultAuthRole: ""

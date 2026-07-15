@@ -404,6 +404,9 @@ func getNextVersion() {
 		os.Exit(1)
 	}
 
+	// Determine version bump level from commit scopes
+	bumpType := getVersionBumpFromCommits(component)
+
 	// Build svu command flags
 	svuArgs := []string{
 		"next",
@@ -411,6 +414,11 @@ func getNextVersion() {
 		fmt.Sprintf("--tag.pattern=%s/v*", component),
 		"--tag.output=v",
 		"--always=true",
+	}
+
+	// Set the bump type based on commit analysis
+	if bumpType != "" {
+		svuArgs = append(svuArgs, fmt.Sprintf("--bump=%s", bumpType))
 	}
 
 	if rc != "" {
@@ -444,6 +452,76 @@ func getNextVersion() {
 	fmt.Print(strings.TrimSpace(string(output)))
 }
 
+func getVersionBumpFromCommits(component string) string {
+	var commitRange string
+	ref := os.Getenv("GITHUB_REF")
+	if ref == "refs/heads/main" || ref == "refs/heads/dev" {
+		commitRange = "HEAD~1...HEAD"
+	} else {
+		commitRange = "origin/main...HEAD"
+	}
+
+	cmd := exec.Command("git", "log", commitRange, "--format=%B%n---COMMIT_DELIMITER---")
+	output, err := cmd.Output()
+	if err != nil {
+		cmd = exec.Command("git", "log", "--format=%B%n---COMMIT_DELIMITER---")
+		output, _ = cmd.Output()
+	}
+
+	commitMessages := strings.Split(string(output), "---COMMIT_DELIMITER---")
+	scopeRegex := regexp.MustCompile(`^(feat|fix|chore|docs|style|refactor|perf|test)\(([^)]+)\)(!?):`)
+
+	hasBreakingChange := false
+	hasFeature := false
+
+	for _, msg := range commitMessages {
+		msg = strings.TrimSpace(msg)
+		if msg == "" {
+			continue
+		}
+
+		lines := strings.Split(msg, "\n")
+		firstLine := lines[0]
+
+		matches := scopeRegex.FindStringSubmatch(firstLine)
+		if len(matches) >= 3 {
+			commitType := matches[1]
+			commitComponent := matches[2]
+
+			if commitComponent != component {
+				continue
+			}
+
+			if len(matches) >= 4 && matches[3] == "!" {
+				hasBreakingChange = true
+			}
+
+			if commitType == "feat" {
+				hasFeature = true
+			}
+
+			if hasBreakingChange {
+				break
+			}
+		}
+
+		for _, line := range lines[1:] {
+			if strings.HasPrefix(line, "BREAKING CHANGE:") {
+				hasBreakingChange = true
+				break
+			}
+		}
+	}
+
+	if hasBreakingChange {
+		return "major"
+	}
+	if hasFeature {
+		return "minor"
+	}
+	return "patch"
+}
+
 func detectComponents() {
 	repoRoot := os.Getenv("REPO_ROOT")
 	if repoRoot == "" {
@@ -452,8 +530,6 @@ func detectComponents() {
 
 	buildAll := os.Getenv("BUILD_ALL") == "true"
 	manualComponents := os.Getenv("MANUAL_COMPONENTS")
-	// GITHUB_REF is optional - only used in CI/CD
-	_ = os.Getenv("GITHUB_REF")
 
 	var components []string
 
@@ -467,8 +543,8 @@ func detectComponents() {
 			components[i] = strings.TrimSpace(c)
 		}
 	} else {
-		// Detect changed components
-		components = getChangedComponents(repoRoot)
+		// Detect components from commit message scopes
+		components = getComponentsFromCommitScopes(repoRoot)
 	}
 
 	// Output as JSON array
@@ -505,6 +581,58 @@ func getAllComponents(repoRoot string) []string {
 	}
 
 	sort.Strings(components)
+	return components
+}
+
+func getComponentsFromCommitScopes(repoRoot string) []string {
+	validComponents := getAllComponents(repoRoot)
+	validSet := make(map[string]bool)
+	for _, c := range validComponents {
+		validSet[c] = true
+	}
+
+	seen := make(map[string]bool)
+
+	var commitRange string
+	ref := os.Getenv("GITHUB_REF")
+	if ref == "refs/heads/main" || ref == "refs/heads/dev" {
+		commitRange = "HEAD~1...HEAD"
+	} else {
+		commitRange = "origin/main...HEAD"
+	}
+
+	cmd := exec.Command("git", "log", commitRange, "--format=%B%n---COMMIT_DELIMITER---")
+	output, err := cmd.Output()
+	if err != nil {
+		cmd = exec.Command("git", "log", "--format=%B%n---COMMIT_DELIMITER---")
+		output, _ = cmd.Output()
+	}
+
+	commitMessages := strings.Split(string(output), "---COMMIT_DELIMITER---")
+	scopeRegex := regexp.MustCompile(`^(feat|fix|chore|docs|style|refactor|perf|test)\(([^)]+)\):`)
+
+	for _, msg := range commitMessages {
+		msg = strings.TrimSpace(msg)
+		if msg == "" {
+			continue
+		}
+
+		lines := strings.Split(msg, "\n")
+		firstLine := lines[0]
+
+		matches := scopeRegex.FindStringSubmatch(firstLine)
+		if len(matches) >= 3 {
+			component := matches[2]
+			if component == "all" {
+				return validComponents
+			}
+			if validSet[component] && !seen[component] {
+				seen[component] = true
+			}
+		}
+	}
+
+	components := slices.Sorted(maps.Keys(seen))
 	return components
 }
 

@@ -19,19 +19,14 @@ func main() {
 					Sources: cli.EnvVars("CONTINUOUS"),
 				},
 				&cli.StringFlag{
-					Name:     "encryption-key",
+					Name:     "bitwarden-access-token",
 					Required: true,
-					Sources:  cli.EnvVars("ENCRYPTION_KEY"),
+					Sources:  cli.EnvVars("BITWARDEN_ACCESS_TOKEN"),
 				},
 				&cli.StringFlag{
-					Name:     "gcs-credentials",
+					Name:     "bitwarden-secret-id",
 					Required: true,
-					Sources:  cli.EnvVars("GCS_CREDENTIALS"),
-				},
-				&cli.StringFlag{
-					Name:     "gcs-destination",
-					Required: true,
-					Sources:  cli.EnvVars("GCS_DESTINATION"),
+					Sources:  cli.EnvVars("BITWARDEN_SECRET_ID"),
 				},
 				&cli.DurationFlag{
 					Name:    "interval",
@@ -63,16 +58,15 @@ func main() {
 			},
 			Action: func(ctx context.Context, c *cli.Command) error {
 				client, err := internal.New(&internal.Opts{
-					Continuous:        cliutil.BoolPtr(c, "continuous"),
-					EncryptionKey:     c.String("encryption-key"),
-					GCSCredentials:    c.String("gcs-credentials"),
-					GCSDestination:    c.String("gcs-destination"),
-					Interval:          c.Duration("interval"),
-					VaultAddr:         c.String("vault-addr"),
-					VaultAuthMount:    c.String("vault-auth-mount"),
-					VaultAuthRole:     c.String("vault-auth-role"),
-					VaultAuthToken:    c.String("vault-auth-token"),
-					VaultSecretsMount: c.String("vault-secrets-mount"),
+					Continuous:           cliutil.BoolPtr(c, "continuous"),
+					BitwardenAccessToken: c.String("bitwarden-access-token"),
+					BitwardenSecretID:    c.String("bitwarden-secret-id"),
+					Interval:             c.Duration("interval"),
+					VaultAddr:            c.String("vault-addr"),
+					VaultAuthMount:       c.String("vault-auth-mount"),
+					VaultAuthRole:        c.String("vault-auth-role"),
+					VaultAuthToken:       c.String("vault-auth-token"),
+					VaultSecretsMount:    c.String("vault-secrets-mount"),
 				})
 				if err != nil {
 					return err

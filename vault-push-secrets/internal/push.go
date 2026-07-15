@@ -1,12 +1,10 @@
 package internal
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"regexp"
@@ -14,41 +12,37 @@ import (
 	"syscall"
 	"time"
 
-	"cloud.google.com/go/storage"
-	"filippo.io/age"
 	"github.com/benfiola/homelab-images/shared/pkg/logging"
+	bsm "github.com/bitwarden/sdk-go/v2"
 	"github.com/goccy/go-yaml"
 	"github.com/hashicorp/vault-client-go"
 	"github.com/hashicorp/vault-client-go/schema"
-	"google.golang.org/api/option"
 )
 
 type Opts struct {
-	Continuous        *bool
-	EncryptionKey     string
-	GCSCredentials    string
-	GCSDestination    string
-	Interval          time.Duration
-	VaultAddr         string
-	VaultAuthMount    string
-	VaultAuthRole     string
-	VaultAuthToken    string
-	VaultSecretsMount string
+	Continuous            *bool
+	BitwardenAccessToken  string
+	BitwardenSecretID     string
+	Interval              time.Duration
+	VaultAddr             string
+	VaultAuthMount        string
+	VaultAuthRole         string
+	VaultAuthToken        string
+	VaultSecretsMount     string
 }
 
 type Pusher struct {
-	Continuous        bool
-	EncryptionKey     string
-	Interval          time.Duration
-	LastChecksum      string
-	GCS               *storage.Client
-	GCSDestination    string
-	Vault             *vault.Client
-	VaultAddr         string
-	VaultAuthMount    string
-	VaultAuthRole     string
-	VaultAuthToken    string
-	VaultSecretsMount string
+	Continuous           bool
+	Interval             time.Duration
+	LastChecksum         string
+	Bitwarden            bsm.BitwardenClientInterface
+	BitwardenSecretID    string
+	Vault                *vault.Client
+	VaultAddr            string
+	VaultAuthMount       string
+	VaultAuthRole        string
+	VaultAuthToken       string
+	VaultSecretsMount    string
 }
 
 type VaultRole struct {
@@ -91,22 +85,21 @@ func New(opts *Opts) (*Pusher, error) {
 		return nil, fmt.Errorf("secrets mount unset")
 	}
 
-	if opts.EncryptionKey == "" {
-		return nil, fmt.Errorf("encryption key unset")
+	if opts.BitwardenAccessToken == "" {
+		return nil, fmt.Errorf("bitwarden access token unset")
 	}
 
-	if opts.GCSCredentials == "" {
-		return nil, fmt.Errorf("gcs credentials unset")
+	if opts.BitwardenSecretID == "" {
+		return nil, fmt.Errorf("bitwarden secret id unset")
 	}
 
-	storageClient, err := storage.NewClient(context.Background(), option.WithCredentialsFile(opts.GCSCredentials))
+	bitwardenClient, err := bsm.NewBitwardenClient(nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create bitwarden client: %w", err)
 	}
 
-	_, _, err = ParseGCSDestination(opts.GCSDestination)
-	if err != nil {
-		return nil, err
+	if err := bitwardenClient.AccessTokenLogin(opts.BitwardenAccessToken, nil); err != nil {
+		return nil, fmt.Errorf("failed to authenticate with bitwarden: %w", err)
 	}
 
 	vaultClient, err := vault.New(
@@ -117,32 +110,20 @@ func New(opts *Opts) (*Pusher, error) {
 	}
 
 	pusher := Pusher{
-		Continuous:        continuous,
-		EncryptionKey:     opts.EncryptionKey,
-		Interval:          interval,
-		GCS:               storageClient,
-		GCSDestination:    opts.GCSDestination,
-		Vault:             vaultClient,
-		VaultAddr:         opts.VaultAddr,
-		VaultAuthRole:     opts.VaultAuthRole,
-		VaultAuthMount:    opts.VaultAuthMount,
-		VaultAuthToken:    opts.VaultAuthToken,
-		VaultSecretsMount: opts.VaultSecretsMount,
+		Continuous:           continuous,
+		Interval:             interval,
+		Bitwarden:            bitwardenClient,
+		BitwardenSecretID:    opts.BitwardenSecretID,
+		Vault:                vaultClient,
+		VaultAddr:            opts.VaultAddr,
+		VaultAuthRole:        opts.VaultAuthRole,
+		VaultAuthMount:       opts.VaultAuthMount,
+		VaultAuthToken:       opts.VaultAuthToken,
+		VaultSecretsMount:    opts.VaultSecretsMount,
 	}
 	return &pusher, nil
 }
 
-var gcsDestinationRegex = regexp.MustCompile("^gs://([^/]+)/(.*[^/])$")
-
-func ParseGCSDestination(gcsDestination string) (string, string, error) {
-	matches := gcsDestinationRegex.FindStringSubmatch(gcsDestination)
-	if matches == nil {
-		return "", "", fmt.Errorf("invalid storage path %s", gcsDestination)
-	}
-	bucket := matches[1]
-	path := matches[2]
-	return bucket, path, nil
-}
 
 func (p *Pusher) toStringSlice(v any) ([]string, error) {
 	anyValues, ok := v.([]any)
@@ -350,48 +331,37 @@ func (p *Pusher) Checksum(ctx context.Context, data *VaultSecrets) (string, erro
 func (p *Pusher) Upload(ctx context.Context, data *VaultSecrets) error {
 	logger := logging.FromContext(ctx)
 
-	bucket, path, err := ParseGCSDestination(p.GCSDestination)
-	if err != nil {
-		logger.Error("failed to parse storage path", "storage-path", p.GCSDestination, "error", err)
-		return err
-	}
-
 	dataBytes, err := yaml.Marshal(data)
 	if err != nil {
 		logger.Error("failed to marshal secrets to YAML", "error", err)
 		return err
 	}
 
-	if p.EncryptionKey != "" {
-		recipient, err := age.ParseX25519Recipient(p.EncryptionKey)
-		if err != nil {
-			logger.Error("failed to create age recipient", "error", err)
-			return err
-		}
-		var buf bytes.Buffer
-		w, err := age.Encrypt(&buf, recipient)
-		if err != nil {
-			logger.Error("failed to initialize age encryption", "error", err)
-			return err
-		}
-		if _, err = w.Write(dataBytes); err != nil {
-			logger.Error("failed to encrypt secrets", "error", err)
-			return err
-		}
-		if err = w.Close(); err != nil {
-			logger.Error("failed to finalize age encryption", "error", err)
-			return err
-		}
-		dataBytes = buf.Bytes()
+	dataStr := string(dataBytes)
+
+	// Get the secret to extract its key
+	secret, err := p.Bitwarden.Secrets().Get(p.BitwardenSecretID)
+	if err != nil {
+		logger.Error("failed to get secret from bitwarden", "secret_id", p.BitwardenSecretID, "error", err)
+		return err
 	}
 
-	reader := bytes.NewReader(dataBytes)
-	writer := p.GCS.Bucket(bucket).Object(path).NewWriter(ctx)
-	defer writer.Close()
+	// Update the existing secret with new value
+	projectIDs := []string{}
+	if secret.ProjectID != nil {
+		projectIDs = []string{*secret.ProjectID}
+	}
 
-	_, err = io.Copy(writer, reader)
+	_, err = p.Bitwarden.Secrets().Update(
+		p.BitwardenSecretID,
+		secret.Key,
+		dataStr,
+		secret.Note,
+		secret.OrganizationID,
+		projectIDs,
+	)
 	if err != nil {
-		logger.Error("failed to upload to cloud storage", "bucket", bucket, "path", path, "error", err)
+		logger.Error("failed to update secret in bitwarden", "secret_id", p.BitwardenSecretID, "error", err)
 		return err
 	}
 
