@@ -618,16 +618,19 @@ func getComponentsFromCommitScopes(repoRoot string) []string {
 		}
 
 		lines := strings.Split(msg, "\n")
-		firstLine := lines[0]
 
-		matches := scopeRegex.FindStringSubmatch(firstLine)
-		if len(matches) >= 3 {
-			component := matches[2]
-			if component == "all" {
-				return validComponents
-			}
-			if validSet[component] && !seen[component] {
-				seen[component] = true
+		// Parse all lines for semantic commit scopes
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			matches := scopeRegex.FindStringSubmatch(line)
+			if len(matches) >= 3 {
+				component := matches[2]
+				if component == "all" {
+					return validComponents
+				}
+				if validSet[component] && !seen[component] {
+					seen[component] = true
+				}
 			}
 		}
 	}
