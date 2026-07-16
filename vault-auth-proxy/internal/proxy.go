@@ -2,8 +2,8 @@ package internal
 
 import (
 	"context"
-	"io"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/signal"
@@ -23,7 +23,6 @@ type AuthProxy struct {
 	ListenAddr    string
 	VaultAddr     string
 	RootTokenPath string
-	Client        *http.Client
 }
 
 func New(opts *Opts) (*AuthProxy, error) {
@@ -41,9 +40,6 @@ func New(opts *Opts) (*AuthProxy, error) {
 		ListenAddr:    opts.ListenAddr,
 		VaultAddr:     opts.VaultAddr,
 		RootTokenPath: opts.RootTokenPath,
-		Client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
 	}
 
 	return proxy, nil
@@ -79,43 +75,16 @@ func (p *AuthProxy) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetURL.Path = r.URL.Path
-	targetURL.RawQuery = r.URL.RawQuery
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
-	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL.String(), r.Body)
-	if err != nil {
-		logger.Error("failed to create proxy request", "error", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+	// Modify the request before forwarding
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		req.Header.Set("X-Vault-Token", token)
 	}
 
-	proxyReq.Header.Set("X-Vault-Token", token)
-
-	for key, values := range r.Header {
-		for _, value := range values {
-			proxyReq.Header.Add(key, value)
-		}
-	}
-
-	resp, err := p.Client.Do(proxyReq)
-	if err != nil {
-		logger.Error("failed to proxy request", "error", err)
-		http.Error(w, "Bad Gateway", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	for key, values := range resp.Header {
-		for _, value := range values {
-			w.Header().Add(key, value)
-		}
-	}
-
-	w.WriteHeader(resp.StatusCode)
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		logger.Error("failed to write response", "error", err)
-	}
+	proxy.ServeHTTP(w, r)
 }
 
 func (p *AuthProxy) Run(ctx context.Context) error {
