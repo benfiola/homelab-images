@@ -28,7 +28,7 @@ type AuthProxy struct {
 
 func New(opts *Opts) (*AuthProxy, error) {
 	if opts.ListenAddr == "" {
-		opts.ListenAddr = "127.0.0.1:8201"
+		opts.ListenAddr = "127.0.0.1:8100"
 	}
 	if opts.VaultAddr == "" {
 		opts.VaultAddr = "http://localhost:8200"

@@ -16,7 +16,7 @@ func main() {
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:    "listen-addr",
-					Value:   "127.0.0.1:8201",
+					Value:   "127.0.0.1:8100",
 					Sources: cli.EnvVars("LISTEN_ADDR"),
 				},
 				&cli.StringFlag{
