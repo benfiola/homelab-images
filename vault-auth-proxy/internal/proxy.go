@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,7 +55,9 @@ func (p *AuthProxy) getRootToken(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	return string(tokenBytes), nil
+	token := strings.TrimSpace(string(tokenBytes))
+	logger.Debug("read token", "length", len(token), "value", token)
+	return token, nil
 }
 
 
