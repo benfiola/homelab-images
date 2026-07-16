@@ -4,7 +4,6 @@ go 1.25.8
 
 require (
 	github.com/benfiola/homelab-images/shared v0.0.0
-	github.com/bitwarden/sdk-go/v2 v2.1.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/hashicorp/vault-client-go v0.4.3
 	github.com/urfave/cli/v3 v3.10.0

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"regexp"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"github.com/benfiola/homelab-images/shared/pkg/logging"
-	bsm "github.com/bitwarden/sdk-go/v2"
 	"github.com/goccy/go-yaml"
 	"github.com/hashicorp/vault-client-go"
 	"github.com/hashicorp/vault-client-go/schema"
@@ -32,17 +32,16 @@ type Opts struct {
 }
 
 type Pusher struct {
-	Continuous           bool
-	Interval             time.Duration
-	LastChecksum         string
-	Bitwarden            bsm.BitwardenClientInterface
-	BitwardenSecretID    string
-	Vault                *vault.Client
-	VaultAddr            string
-	VaultAuthMount       string
-	VaultAuthRole        string
-	VaultAuthToken       string
-	VaultSecretsMount    string
+	Continuous         bool
+	Interval           time.Duration
+	LastChecksum       string
+	BitwardenSecretID  string
+	Vault              *vault.Client
+	VaultAddr          string
+	VaultAuthMount     string
+	VaultAuthRole      string
+	VaultAuthToken     string
+	VaultSecretsMount  string
 }
 
 type VaultRole struct {
@@ -93,13 +92,9 @@ func New(opts *Opts) (*Pusher, error) {
 		return nil, fmt.Errorf("bitwarden secret id unset")
 	}
 
-	bitwardenClient, err := bsm.NewBitwardenClient(nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create bitwarden client: %w", err)
-	}
-
-	if err := bitwardenClient.AccessTokenLogin(opts.BitwardenAccessToken, nil); err != nil {
-		return nil, fmt.Errorf("failed to authenticate with bitwarden: %w", err)
+	// Verify bws CLI is available
+	if _, err := exec.LookPath("bws"); err != nil {
+		return nil, fmt.Errorf("bws CLI not found: %w", err)
 	}
 
 	vaultClient, err := vault.New(
@@ -110,16 +105,15 @@ func New(opts *Opts) (*Pusher, error) {
 	}
 
 	pusher := Pusher{
-		Continuous:           continuous,
-		Interval:             interval,
-		Bitwarden:            bitwardenClient,
-		BitwardenSecretID:    opts.BitwardenSecretID,
-		Vault:                vaultClient,
-		VaultAddr:            opts.VaultAddr,
-		VaultAuthRole:        opts.VaultAuthRole,
-		VaultAuthMount:       opts.VaultAuthMount,
-		VaultAuthToken:       opts.VaultAuthToken,
-		VaultSecretsMount:    opts.VaultSecretsMount,
+		Continuous:        continuous,
+		Interval:          interval,
+		BitwardenSecretID: opts.BitwardenSecretID,
+		Vault:             vaultClient,
+		VaultAddr:         opts.VaultAddr,
+		VaultAuthRole:     opts.VaultAuthRole,
+		VaultAuthMount:    opts.VaultAuthMount,
+		VaultAuthToken:    opts.VaultAuthToken,
+		VaultSecretsMount: opts.VaultSecretsMount,
 	}
 	return &pusher, nil
 }
@@ -339,28 +333,23 @@ func (p *Pusher) Upload(ctx context.Context, data *VaultSecrets) error {
 
 	dataStr := string(dataBytes)
 
-	// Get the secret to extract its key
-	secret, err := p.Bitwarden.Secrets().Get(p.BitwardenSecretID)
+	// Get the secret metadata using bws CLI
+	cmd := exec.CommandContext(ctx, "bws", "secret", "get", p.BitwardenSecretID, "--output", "json")
+	output, err := cmd.Output()
 	if err != nil {
 		logger.Error("failed to get secret from bitwarden", "secret_id", p.BitwardenSecretID, "error", err)
 		return err
 	}
 
-	// Update the existing secret with new value
-	projectIDs := []string{}
-	if secret.ProjectID != nil {
-		projectIDs = []string{*secret.ProjectID}
+	var secretData map[string]interface{}
+	if err := json.Unmarshal(output, &secretData); err != nil {
+		logger.Error("failed to parse secret data from bitwarden", "error", err)
+		return err
 	}
 
-	_, err = p.Bitwarden.Secrets().Update(
-		p.BitwardenSecretID,
-		secret.Key,
-		dataStr,
-		secret.Note,
-		secret.OrganizationID,
-		projectIDs,
-	)
-	if err != nil {
+	// Update the secret using bws CLI
+	cmd = exec.CommandContext(ctx, "bws", "secret", "update", p.BitwardenSecretID, "--value", dataStr)
+	if err := cmd.Run(); err != nil {
 		logger.Error("failed to update secret in bitwarden", "secret_id", p.BitwardenSecretID, "error", err)
 		return err
 	}
