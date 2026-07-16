@@ -32,16 +32,17 @@ type Opts struct {
 }
 
 type Pusher struct {
-	Continuous         bool
-	Interval           time.Duration
-	LastChecksum       string
-	BitwardenSecretID  string
-	Vault              *vault.Client
-	VaultAddr          string
-	VaultAuthMount     string
-	VaultAuthRole      string
-	VaultAuthToken     string
-	VaultSecretsMount  string
+	Continuous            bool
+	Interval              time.Duration
+	LastChecksum          string
+	BitwardenAccessToken  string
+	BitwardenSecretID     string
+	Vault                 *vault.Client
+	VaultAddr             string
+	VaultAuthMount        string
+	VaultAuthRole         string
+	VaultAuthToken        string
+	VaultSecretsMount     string
 }
 
 type VaultRole struct {
@@ -105,15 +106,16 @@ func New(opts *Opts) (*Pusher, error) {
 	}
 
 	pusher := Pusher{
-		Continuous:        continuous,
-		Interval:          interval,
-		BitwardenSecretID: opts.BitwardenSecretID,
-		Vault:             vaultClient,
-		VaultAddr:         opts.VaultAddr,
-		VaultAuthRole:     opts.VaultAuthRole,
-		VaultAuthMount:    opts.VaultAuthMount,
-		VaultAuthToken:    opts.VaultAuthToken,
-		VaultSecretsMount: opts.VaultSecretsMount,
+		Continuous:            continuous,
+		Interval:              interval,
+		BitwardenAccessToken:  opts.BitwardenAccessToken,
+		BitwardenSecretID:     opts.BitwardenSecretID,
+		Vault:                 vaultClient,
+		VaultAddr:             opts.VaultAddr,
+		VaultAuthRole:         opts.VaultAuthRole,
+		VaultAuthMount:        opts.VaultAuthMount,
+		VaultAuthToken:        opts.VaultAuthToken,
+		VaultSecretsMount:     opts.VaultSecretsMount,
 	}
 	return &pusher, nil
 }
@@ -334,7 +336,7 @@ func (p *Pusher) Upload(ctx context.Context, data *VaultSecrets) error {
 	dataStr := string(dataBytes)
 
 	// Get the secret metadata using bws CLI
-	cmd := exec.CommandContext(ctx, "bws", "secret", "get", p.BitwardenSecretID, "--output", "json")
+	cmd := exec.CommandContext(ctx, "bws", "secret", "get", p.BitwardenSecretID, "--output", "json", "--access-token", p.BitwardenAccessToken)
 	output, err := cmd.Output()
 	if err != nil {
 		logger.Error("failed to get secret from bitwarden", "secret_id", p.BitwardenSecretID, "error", err)
@@ -348,7 +350,7 @@ func (p *Pusher) Upload(ctx context.Context, data *VaultSecrets) error {
 	}
 
 	// Update the secret using bws CLI
-	cmd = exec.CommandContext(ctx, "bws", "secret", "update", p.BitwardenSecretID, "--value", dataStr)
+	cmd = exec.CommandContext(ctx, "bws", "secret", "update", p.BitwardenSecretID, "--value", dataStr, "--access-token", p.BitwardenAccessToken)
 	if err := cmd.Run(); err != nil {
 		logger.Error("failed to update secret in bitwarden", "secret_id", p.BitwardenSecretID, "error", err)
 		return err
