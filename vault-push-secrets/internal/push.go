@@ -350,7 +350,7 @@ func (p *Pusher) Upload(ctx context.Context, data *VaultSecrets) error {
 	}
 
 	// Update the secret using bws CLI
-	cmd = exec.CommandContext(ctx, "bws", "secret", "update", p.BitwardenSecretID, "--value", dataStr, "--access-token", p.BitwardenAccessToken)
+	cmd = exec.CommandContext(ctx, "bws", "secret", "edit", p.BitwardenSecretID, "--value", dataStr, "--access-token", p.BitwardenAccessToken)
 	if err := cmd.Run(); err != nil {
 		logger.Error("failed to update secret in bitwarden", "secret_id", p.BitwardenSecretID, "error", err)
 		return err
