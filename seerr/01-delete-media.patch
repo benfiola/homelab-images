@@ -1,0 +1,415 @@
+diff --git a/server/routes/media.ts b/server/routes/media.ts
+index dbbe34ae..3c7c8cf4 100644
+--- a/server/routes/media.ts
++++ b/server/routes/media.ts
+@@ -4,6 +4,7 @@ import TautulliAPI from '@server/api/tautulli';
+ import TheMovieDb from '@server/api/themoviedb';
+ import { MediaStatus, MediaType } from '@server/constants/media';
+ import { getRepository } from '@server/datasource';
++import { MediaRequest } from '@server/entity/MediaRequest';
+ import Media from '@server/entity/Media';
+ import Season from '@server/entity/Season';
+ import { User } from '@server/entity/User';
+@@ -21,6 +22,26 @@ import { EntityNotFoundError, In, IsNull, Not } from 'typeorm';
+ 
+ const mediaRoutes = Router();
+ 
++const canDeleteMedia = async (
++  userId: number,
++  mediaId: number,
++  is4k: boolean
++): Promise<boolean> => {
++  try {
++    const mediaRepository = getRepository(MediaRequest);
++    const request = await mediaRepository.findOne({
++      where: {
++        media: { id: mediaId },
++        requestedBy: { id: userId },
++        is4k,
++      },
++    });
++    return !!request;
++  } catch {
++    return false;
++  }
++};
++
+ mediaRoutes.get('/', async (req, res, next) => {
+   const mediaRepository = getRepository(Media);
+ 
+@@ -200,98 +221,109 @@ mediaRoutes.delete(
+   }
+ );
+ 
+-mediaRoutes.delete(
+-  '/:id/file',
+-  isAuthenticated(Permission.MANAGE_REQUESTS),
+-  async (req, res, next) => {
+-    try {
+-      const settings = getSettings();
+-      const mediaRepository = getRepository(Media);
+-      const media = await mediaRepository.findOneOrFail({
+-        where: { id: Number(req.params.id) },
++mediaRoutes.delete('/:id/file', async (req, res, next) => {
++  try {
++    if (!req.user) {
++      return next({ status: 401, message: 'User not authenticated' });
++    }
++
++    const is4k = String(req.query.is4k) === 'true';
++    const mediaId = Number(req.params.id);
++    const canDelete =
++      req.user.hasPermission(Permission.MANAGE_REQUESTS) ||
++      (await canDeleteMedia(req.user.id, mediaId, is4k));
++
++    if (!canDelete) {
++      return next({
++        status: 401,
++        message: 'You do not have permission to delete this media.',
+       });
++    }
+ 
+-      const is4k = String(req.query.is4k) === 'true';
+-      const isMovie = media.mediaType === MediaType.MOVIE;
++    const settings = getSettings();
++    const mediaRepository = getRepository(Media);
++    const media = await mediaRepository.findOneOrFail({
++      where: { id: mediaId },
++    });
++    const isMovie = media.mediaType === MediaType.MOVIE;
++
++    let serviceSettings;
++    if (isMovie) {
++      serviceSettings = settings.radarr.find(
++        (radarr) => radarr.isDefault && radarr.is4k === is4k
++      );
++    } else {
++      serviceSettings = settings.sonarr.find(
++        (sonarr) => sonarr.isDefault && sonarr.is4k === is4k
++      );
++    }
+ 
+-      let serviceSettings;
++    const specificServiceId = is4k ? media.serviceId4k : media.serviceId;
++    if (
++      specificServiceId &&
++      specificServiceId >= 0 &&
++      serviceSettings?.id !== specificServiceId
++    ) {
+       if (isMovie) {
+         serviceSettings = settings.radarr.find(
+-          (radarr) => radarr.isDefault && radarr.is4k === is4k
++          (radarr) => radarr.id === specificServiceId
+         );
+       } else {
+         serviceSettings = settings.sonarr.find(
+-          (sonarr) => sonarr.isDefault && sonarr.is4k === is4k
++          (sonarr) => sonarr.id === specificServiceId
+         );
+       }
++    }
+ 
+-      const specificServiceId = is4k ? media.serviceId4k : media.serviceId;
+-      if (
+-        specificServiceId &&
+-        specificServiceId >= 0 &&
+-        serviceSettings?.id !== specificServiceId
+-      ) {
+-        if (isMovie) {
+-          serviceSettings = settings.radarr.find(
+-            (radarr) => radarr.id === specificServiceId
+-          );
+-        } else {
+-          serviceSettings = settings.sonarr.find(
+-            (sonarr) => sonarr.id === specificServiceId
+-          );
++    if (!serviceSettings) {
++      logger.warn(
++        `There is no default ${
++          is4k ? '4K ' : '' + isMovie ? 'Radarr' : 'Sonarr'
++        }/ server configured. Did you set any of your ${
++          is4k ? '4K ' : '' + isMovie ? 'Radarr' : 'Sonarr'
++        } servers as default?`,
++        {
++          label: 'Media Request',
++          mediaId: media.id,
+         }
+-      }
+-
+-      if (!serviceSettings) {
+-        logger.warn(
+-          `There is no default ${
+-            is4k ? '4K ' : '' + isMovie ? 'Radarr' : 'Sonarr'
+-          }/ server configured. Did you set any of your ${
+-            is4k ? '4K ' : '' + isMovie ? 'Radarr' : 'Sonarr'
+-          } servers as default?`,
+-          {
+-            label: 'Media Request',
+-            mediaId: media.id,
+-          }
+-        );
+-        return;
+-      }
++      );
++      return;
++    }
+ 
+-      let service;
+-      if (isMovie) {
+-        service = new RadarrAPI({
+-          apiKey: serviceSettings?.apiKey,
+-          url: RadarrAPI.buildUrl(serviceSettings, '/api/v3'),
+-        });
+-      } else {
+-        service = new SonarrAPI({
+-          apiKey: serviceSettings?.apiKey,
+-          url: SonarrAPI.buildUrl(serviceSettings, '/api/v3'),
+-        });
+-      }
++    let service;
++    if (isMovie) {
++      service = new RadarrAPI({
++        apiKey: serviceSettings?.apiKey,
++        url: RadarrAPI.buildUrl(serviceSettings, '/api/v3'),
++      });
++    } else {
++      service = new SonarrAPI({
++        apiKey: serviceSettings?.apiKey,
++        url: SonarrAPI.buildUrl(serviceSettings, '/api/v3'),
++      });
++    }
+ 
+-      if (isMovie) {
+-        await (service as RadarrAPI).removeMovie(media.tmdbId);
+-      } else {
+-        const tmdb = new TheMovieDb();
+-        const series = await tmdb.getTvShow({ tvId: media.tmdbId });
+-        const tvdbId = series.external_ids.tvdb_id ?? media.tvdbId;
+-        if (!tvdbId) {
+-          throw new Error('TVDB ID not found');
+-        }
+-        await (service as SonarrAPI).removeSeries(tvdbId);
++    if (isMovie) {
++      await (service as RadarrAPI).removeMovie(media.tmdbId);
++    } else {
++      const tmdb = new TheMovieDb();
++      const series = await tmdb.getTvShow({ tvId: media.tmdbId });
++      const tvdbId = series.external_ids.tvdb_id ?? media.tvdbId;
++      if (!tvdbId) {
++        throw new Error('TVDB ID not found');
+       }
+-
+-      return res.status(204).send();
+-    } catch (e) {
+-      logger.error('Something went wrong fetching media in delete request', {
+-        label: 'Media',
+-        message: e.message,
+-      });
+-      next({ status: 404, message: 'Media not found' });
++      await (service as SonarrAPI).removeSeries(tvdbId);
+     }
++
++    return res.status(204).send();
++  } catch (e) {
++    logger.error('Something went wrong fetching media in delete request', {
++      label: 'Media',
++      message: e.message,
++    });
++    next({ status: 404, message: 'Media not found' });
+   }
+-);
++});
+ 
+ mediaRoutes.get<{ id: string }, MediaWatchDataResponse>(
+   '/:id/watch_data',
+diff --git a/server/routes/request.ts b/server/routes/request.ts
+index fafa9069..325ce24d 100644
+--- a/server/routes/request.ts
++++ b/server/routes/request.ts
+@@ -237,35 +237,41 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
+         }
+       });
+ 
+-      // add canRemove prop if user has permission
+-      if (req.user?.hasPermission(Permission.MANAGE_REQUESTS)) {
+-        mappedRequests = mappedRequests.map((r) => {
+-          switch (r.type) {
+-            case MediaType.MOVIE: {
+-              return {
+-                ...r,
+-                // check if the radarr server for this request is configured
+-                canRemove: radarrServers.some(
+-                  (server) =>
+-                    server.id ===
+-                    (r.is4k ? r.media.serviceId4k : r.media.serviceId)
+-                ),
+-              };
+-            }
+-            case MediaType.TV: {
+-              return {
+-                ...r,
+-                // check if the sonarr server for this request is configured
+-                canRemove: sonarrServers.some(
+-                  (server) =>
+-                    server.id ===
+-                    (r.is4k ? r.media.serviceId4k : r.media.serviceId)
+-                ),
+-              };
+-            }
++      // add canRemove prop if user has permission or is the requester
++      mappedRequests = mappedRequests.map((r) => {
++        const isAdmin = req.user?.hasPermission(Permission.MANAGE_REQUESTS);
++        const isRequester = req.user?.id === r.requestedBy.id;
++        const canRemove = isAdmin || isRequester;
++
++        if (!canRemove) {
++          return r;
++        }
++
++        switch (r.type) {
++          case MediaType.MOVIE: {
++            return {
++              ...r,
++              // check if the radarr server for this request is configured
++              canRemove: radarrServers.some(
++                (server) =>
++                  server.id ===
++                  (r.is4k ? r.media.serviceId4k : r.media.serviceId)
++              ),
++            };
+           }
+-        });
+-      }
++          case MediaType.TV: {
++            return {
++              ...r,
++              // check if the sonarr server for this request is configured
++              canRemove: sonarrServers.some(
++                (server) =>
++                  server.id ===
++                  (r.is4k ? r.media.serviceId4k : r.media.serviceId)
++              ),
++            };
++          }
++        }
++      });
+ 
+       return res.status(200).json({
+         pageInfo: {
+@@ -609,8 +615,7 @@ requestRoutes.delete('/:requestId', async (req, res, next) => {
+ 
+     if (
+       !req.user?.hasPermission(Permission.MANAGE_REQUESTS) &&
+-      (request.requestedBy.id !== req.user?.id ||
+-        request.status !== MediaRequestStatus.PENDING)
++      request.requestedBy.id !== req.user?.id
+     ) {
+       return next({
+         status: 401,
+diff --git a/src/components/ManageSlideOver/index.tsx b/src/components/ManageSlideOver/index.tsx
+index 13e32d4e..e8999a7b 100644
+--- a/src/components/ManageSlideOver/index.tsx
++++ b/src/components/ManageSlideOver/index.tsx
+@@ -189,6 +189,15 @@ const ManageSlideOver = ({
+     return false;
+   };
+ 
++  const isCurrentUserRequester = (is4k: boolean) => {
++    return (
++      currentUser &&
++      data.mediaInfo?.requests?.some(
++        (request) => request.requestedBy.id === currentUser.id && request.is4k === is4k
++      )
++    ) ?? false;
++  };
++
+   const markAvailable = async (is4k = false) => {
+     if (data.mediaInfo) {
+       await axios.post(`/api/v1/media/${data.mediaInfo?.id}/available`, {
+@@ -455,7 +464,8 @@ const ManageSlideOver = ({
+                   </a>
+                 )}
+ 
+-                {hasPermission(Permission.ADMIN) &&
++                {(hasPermission(Permission.ADMIN) ||
++                  isCurrentUserRequester(false)) &&
+                   data?.mediaInfo?.serviceUrl &&
+                   isDefaultService() && (
+                     <div>
+@@ -616,7 +626,9 @@ const ManageSlideOver = ({
+                         </span>
+                       </Button>
+                     </a>
+-                    {isDefault4kService() && (
++                    {(isDefault4kService() &&
++                      (hasPermission(Permission.ADMIN) ||
++                        isCurrentUserRequester(true))) && (
+                       <div>
+                         <ConfirmButton
+                           onClick={() => deleteMediaFile(true)}
+diff --git a/src/components/RequestList/RequestItem/index.tsx b/src/components/RequestList/RequestItem/index.tsx
+index 9a7d2de5..861ecd42 100644
+--- a/src/components/RequestList/RequestItem/index.tsx
++++ b/src/components/RequestList/RequestItem/index.tsx
+@@ -384,6 +384,10 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
+     iOSPlexUrl4k: requestData?.media?.iOSPlexUrl4k,
+   });
+ 
++  const isCurrentUserRequester = () => {
++    return requestData?.requestedBy.id === user?.id;
++  };
++
+   if (!title && !error) {
+     return (
+       <div
+@@ -692,7 +696,8 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
+               </Button>
+             )}
+           {requestData.status !== MediaRequestStatus.PENDING &&
+-            hasPermission(Permission.MANAGE_REQUESTS) && (
++            (hasPermission(Permission.MANAGE_REQUESTS) ||
++              isCurrentUserRequester()) && (
+               <>
+                 <ConfirmButton
+                   onClick={() => deleteRequest()}
+@@ -764,15 +769,31 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
+             )}
+           {requestData.status === MediaRequestStatus.PENDING &&
+             !hasPermission(Permission.MANAGE_REQUESTS) &&
+-            requestData.requestedBy.id === user?.id && (
+-              <ConfirmButton
+-                onClick={() => deleteRequest()}
+-                confirmText={intl.formatMessage(globalMessages.areyousure)}
+-                className="w-full"
+-              >
+-                <XMarkIcon />
+-                <span>{intl.formatMessage(messages.cancelRequest)}</span>
+-              </ConfirmButton>
++            isCurrentUserRequester() && (
++              <>
++                <ConfirmButton
++                  onClick={() => deleteRequest()}
++                  confirmText={intl.formatMessage(globalMessages.areyousure)}
++                  className="w-full"
++                >
++                  <XMarkIcon />
++                  <span>{intl.formatMessage(messages.cancelRequest)}</span>
++                </ConfirmButton>
++                {request.canRemove && (
++                  <ConfirmButton
++                    onClick={() => deleteMediaFile()}
++                    confirmText={intl.formatMessage(globalMessages.areyousure)}
++                    className="w-full"
++                  >
++                    <TrashIcon />
++                    <span>
++                      {intl.formatMessage(messages.removearr, {
++                        arr: request.type === 'movie' ? 'Radarr' : 'Sonarr',
++                      })}
++                    </span>
++                  </ConfirmButton>
++                )}
++              </>
+             )}
+         </div>
+       </div>
