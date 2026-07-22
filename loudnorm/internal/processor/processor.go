@@ -22,11 +22,13 @@ type Processor struct {
 }
 
 type loudnessOutput struct {
-	InputI   string `json:"input_i"`
-	InputTP  string `json:"input_tp"`
-	InputLRA string `json:"input_lra"`
-	OutputI  string `json:"output_i"`
-	OutputTP string `json:"output_tp"`
+	InputI      string `json:"input_i"`
+	InputTP     string `json:"input_tp"`
+	InputLRA    string `json:"input_lra"`
+	InputThresh string `json:"input_thresh"`
+	OutputI     string `json:"output_i"`
+	OutputTP    string `json:"output_tp"`
+	OutputLRA   string `json:"output_lra"`
 }
 
 func New(scratchDir, mediaDir string, loudnessTarget int, logger *slog.Logger) *Processor {
@@ -78,22 +80,22 @@ func (p *Processor) Process(ctx context.Context, filePath string) error {
 		return err
 	}
 
+	logger.InfoContext(ctx, "analyzing loudness (pass 1)")
+	analysis, err := p.analyzeLoudness(ctx, inputCopy, logger)
+	if err != nil {
+		logger.InfoContext(ctx, "skipping normalization", "reason", err.Error())
+		return nil
+	}
+	logger.InfoContext(ctx, "loudness analysis complete", "input_i", analysis.InputI)
+
 	logger.InfoContext(ctx, "extracting audio")
 	if err := p.extractAudio(ctx, inputCopy, audioWav, logger); err != nil {
 		logger.ErrorContext(ctx, "audio extraction failed", "error", err)
 		return err
 	}
 
-	logger.InfoContext(ctx, "analyzing loudness (pass 1)")
-	measuredI, err := p.analyzeLoudness(ctx, audioWav, logger)
-	if err != nil {
-		logger.InfoContext(ctx, "skipping normalization", "reason", err.Error())
-		return nil
-	}
-	logger.InfoContext(ctx, "loudness analysis complete", "measured_I", measuredI)
-
 	logger.InfoContext(ctx, "normalizing loudness (pass 2)")
-	if err := p.normalizeLoudness(ctx, audioWav, normalizedAac, logger); err != nil {
+	if err := p.normalizeLoudness(ctx, audioWav, normalizedAac, analysis, logger); err != nil {
 		logger.ErrorContext(ctx, "loudness normalization failed", "error", err)
 		return err
 	}
@@ -152,11 +154,11 @@ func (p *Processor) extractAudio(ctx context.Context, inputFile, outputWav strin
 	return cmd.Run()
 }
 
-func (p *Processor) analyzeLoudness(ctx context.Context, audioWav string, logger *slog.Logger) (float64, error) {
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", audioWav, "-filter", fmt.Sprintf("loudnorm=I=%d:TP=-1.5:LRA=11:print_format=json", p.loudnessTarget), "-f", "null", "-")
+func (p *Processor) analyzeLoudness(ctx context.Context, audioFile string, logger *slog.Logger) (*loudnessOutput, error) {
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", audioFile, "-filter", fmt.Sprintf("loudnorm=I=%d:TP=-1.5:LRA=11:print_format=json", p.loudnessTarget), "-f", "null", "-")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	text := string(output)
@@ -164,35 +166,27 @@ func (p *Processor) analyzeLoudness(ctx context.Context, audioWav string, logger
 	end := strings.LastIndex(text, "}")
 
 	if start < 0 || end < 0 || start >= end {
-		return 0, fmt.Errorf("no loudness JSON found in ffmpeg output")
+		return nil, fmt.Errorf("no loudness JSON found in ffmpeg output")
 	}
 
 	jsonStr := text[start : end+1]
 
 	var result loudnessOutput
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		return 0, fmt.Errorf("failed to parse loudness JSON: %w", err)
+		return nil, fmt.Errorf("failed to parse loudness JSON: %w", err)
 	}
 
 	if result.InputI == "-inf" || result.InputI == "" {
-		return 0, fmt.Errorf("invalid audio (no measurable loudness)")
+		return nil, fmt.Errorf("invalid audio (no measurable loudness)")
 	}
 
-	inputI := parseFloat(result.InputI)
-	return inputI, nil
+	return &result, nil
 }
 
-func parseFloat(s string) float64 {
-	if s == "-inf" {
-		return -100.0
-	}
-	var f float64
-	fmt.Sscanf(s, "%f", &f)
-	return f
-}
-
-func (p *Processor) normalizeLoudness(ctx context.Context, audioWav, outputAac string, logger *slog.Logger) error {
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", audioWav, "-filter", fmt.Sprintf("loudnorm=I=%d:TP=-1.5:LRA=11:print_format=summary", p.loudnessTarget), "-c:a", "aac", "-b:a", "256k", outputAac)
+func (p *Processor) normalizeLoudness(ctx context.Context, audioWav, outputAac string, analysis *loudnessOutput, logger *slog.Logger) error {
+	filterStr := fmt.Sprintf("loudnorm=I=%d:TP=-1.5:LRA=11:measured_i=%s:measured_tp=%s:measured_lra=%s:measured_thresh=%s:print_format=summary",
+		p.loudnessTarget, analysis.InputI, analysis.InputTP, analysis.InputLRA, analysis.InputThresh)
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", audioWav, "-filter", filterStr, "-c:a", "aac", "-b:a", "256k", outputAac)
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
