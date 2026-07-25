@@ -1,0 +1,5 @@
+tag:
+  prefix: frigate/v
+  pattern: frigate/v*
+  output: v
+always: true
