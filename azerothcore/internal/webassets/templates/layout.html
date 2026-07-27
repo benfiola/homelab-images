@@ -1,0 +1,30 @@
+{{define "layout"}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · AzerothCore</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">AzerothCore</div>
+  {{if .Account}}
+  <nav>
+    <span class="who">{{.Account.Username}}</span>
+    {{if .IsAdmin}}<a href="/">Accounts</a>{{end}}
+    <a href="/account">My Account</a>
+    <form method="post" action="/logout" class="inline"><button type="submit" class="link">Log out</button></form>
+  </nav>
+  {{end}}
+</header>
+<main>
+  <h1>{{.Title}}</h1>
+  {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+  {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+  {{template "content" .}}
+</main>
+</body>
+</html>
+{{end}}

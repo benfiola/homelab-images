@@ -23,6 +23,8 @@ type BucketSyncPolicySpec struct {
 	SourceEnv []corev1.EnvVar `json:"sourceEnv,omitempty"`
 	// +optional
 	DestinationEnv []corev1.EnvVar `json:"destinationEnv,omitempty"`
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
 }
 
 // +kubebuilder:object:root=true

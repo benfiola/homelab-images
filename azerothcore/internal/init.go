@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha1"
 	"database/sql"
 	"fmt"
 	"math/big"
@@ -15,14 +14,18 @@ import (
 	"github.com/benfiola/homelab-images/shared/pkg/cmd"
 	"github.com/benfiola/homelab-images/shared/pkg/logging"
 	_ "github.com/go-sql-driver/mysql"
-	"gopkg.in/yaml.v3"
 )
 
+// bootstrapGMLevel is the GM level assigned to both bootstrapped accounts.
+// AzerothCore's SOAP interface refuses to open a session for any account
+// below this level, so it isn't configurable - anything lower would
+// silently break the web service account's ability to reach SOAP.
+const bootstrapGMLevel = 3
+
 type Opts struct {
-	GameDataURL            string
-	RealmlistAddress       string
-	ConfigFile             string
-	RandomBotAccountPrefix string
+	GameDataURL      string
+	RealmlistAddress string
+	AdminUsername    string
 }
 
 // dataDir returns AC_DATA_DIR (AzerothCore's own config surface), defaulting
@@ -51,6 +54,7 @@ func (i *Init) Run(ctx context.Context) error {
 		{"wait for db", i.waitForDB},
 		{"run migrations", i.runMigrations},
 		{"initialize server", i.initializeServer},
+		{"bootstrap accounts", i.bootstrapAccounts},
 	}
 
 	for _, step := range steps {
@@ -155,18 +159,12 @@ func (i *Init) runMigrations(ctx context.Context) error {
 	return nil
 }
 
-type config struct {
-	Accounts []accountConfig `yaml:"accounts"`
-}
-
-type accountConfig struct {
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-	GmLevel  int    `yaml:"gm_level"`
-}
-
 func (i *Init) initializeServer(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
+
+	if i.opts.RealmlistAddress == "" {
+		return nil
+	}
 
 	info, err := parseDBInfo(os.Getenv("AC_LOGIN_DATABASE_INFO"))
 	if err != nil {
@@ -179,171 +177,124 @@ func (i *Init) initializeServer(ctx context.Context) error {
 	}
 	defer db.Close()
 
-	if i.opts.RealmlistAddress != "" {
-		logger.Info("updating realmlist", "address", i.opts.RealmlistAddress)
-		if _, err := db.ExecContext(ctx, "UPDATE realmlist SET address = ? WHERE id = 1", i.opts.RealmlistAddress); err != nil {
-			return fmt.Errorf("update realmlist: %w", err)
-		}
+	logger.Info("updating realmlist", "address", i.opts.RealmlistAddress)
+	if _, err := db.ExecContext(ctx, "UPDATE realmlist SET address = ? WHERE id = 1", i.opts.RealmlistAddress); err != nil {
+		return fmt.Errorf("update realmlist: %w", err)
 	}
 
-	if _, err := os.Stat(i.opts.ConfigFile); err != nil {
-		logger.Info("no config file, skipping account sync", "path", i.opts.ConfigFile)
-		return nil
-	}
+	return nil
+}
 
-	data, err := os.ReadFile(i.opts.ConfigFile)
+// bootstrapAccounts idempotently creates the human-facing admin account and
+// the hidden WEBUI service account (used only by the "web" command to
+// authenticate to worldserver's SOAP interface) if they don't already
+// exist. Unlike the old YAML-driven account sync, this never touches an
+// account again once created - the web UI owns account lifecycle from here
+// on. Both accounts' generated passwords are recorded in a small
+// purpose-built table (not part of AzerothCore's own schema/migrations) so
+// they're recoverable: a human can look up the admin's initial password,
+// and the "web" command looks up its own service-account password there at
+// startup.
+func (i *Init) bootstrapAccounts(ctx context.Context) error {
+	info, err := parseDBInfo(os.Getenv("AC_LOGIN_DATABASE_INFO"))
 	if err != nil {
-		return fmt.Errorf("read config: %w", err)
+		return err
 	}
 
-	var cfg config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return fmt.Errorf("parse config: %w", err)
-	}
-
-	desired := make(map[string]bool, len(cfg.Accounts))
-	for _, a := range cfg.Accounts {
-		desired[strings.ToUpper(a.Username)] = true
-	}
-
-	rows, err := db.QueryContext(ctx, "SELECT username FROM account")
+	db, err := sql.Open("mysql", info.dsn())
 	if err != nil {
-		return fmt.Errorf("query accounts: %w", err)
+		return fmt.Errorf("open: %w", err)
 	}
-	var existing []string
-	for rows.Next() {
-		var username string
-		if err := rows.Scan(&username); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan account: %w", err)
-		}
-		existing = append(existing, username)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate accounts: %w", err)
+	defer db.Close()
+
+	if _, err := db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS web_bootstrap_credentials (
+			username VARCHAR(32) NOT NULL PRIMARY KEY,
+			password VARCHAR(64) NOT NULL,
+			created_at DATETIME NOT NULL
+		)
+	`); err != nil {
+		return fmt.Errorf("create web_bootstrap_credentials table: %w", err)
 	}
 
-	// mod-playerbots creates its own accounts at runtime (e.g. "RNDBOT0")
-	// that never appear in our config - they're not stale, just unmanaged,
-	// so leave them alone rather than deleting them out from under the mod.
-	botPrefix := strings.ToUpper(i.opts.RandomBotAccountPrefix)
-
-	for _, username := range existing {
-		if desired[username] {
-			continue
-		}
-		if botPrefix != "" && strings.HasPrefix(username, botPrefix) {
-			continue
-		}
-		logger.Info("deleting stale account", "username", username)
-		if _, err := db.ExecContext(ctx, "DELETE FROM account WHERE username = ?", username); err != nil {
-			return fmt.Errorf("delete account %s: %w", username, err)
-		}
-	}
-
-	for _, a := range cfg.Accounts {
-		salt, verifier, err := srpVerifier(a.Username, a.Password)
-		if err != nil {
-			return fmt.Errorf("srp verifier for %s: %w", a.Username, err)
-		}
-
-		username := strings.ToUpper(a.Username)
-		logger.Info("upserting account", "username", username)
-
-		_, err = db.ExecContext(ctx, `
-			INSERT INTO account
-				(username, salt, verifier, email, reg_mail, joindate, last_ip, last_attempt_ip,
-				 failed_logins, locked, lock_country, online, expansion, Flags,
-				 mutetime, mutereason, muteby, locale, os, recruiter, totaltime)
-			VALUES
-				(?, ?, ?, '', '', NOW(), '127.0.0.1', '127.0.0.1',
-				 0, 0, '00', 0, 2, 0,
-				 0, '', '', 0, '', 0, 0)
-			ON DUPLICATE KEY UPDATE salt = VALUES(salt), verifier = VALUES(verifier)
-		`, username, salt, verifier)
-		if err != nil {
-			return fmt.Errorf("upsert account %s: %w", username, err)
-		}
-
-		_, err = db.ExecContext(ctx, `
-			INSERT INTO account_access (id, gmlevel, RealmID)
-			SELECT id, ?, -1 FROM account WHERE username = ?
-			ON DUPLICATE KEY UPDATE gmlevel = VALUES(gmlevel)
-		`, a.GmLevel, username)
-		if err != nil {
-			return fmt.Errorf("upsert gm level %s: %w", username, err)
+	for _, username := range []string{i.opts.AdminUsername, webServiceUsername} {
+		if err := i.bootstrapAccount(ctx, db, username); err != nil {
+			return fmt.Errorf("bootstrap account %s: %w", username, err)
 		}
 	}
 
 	return nil
 }
 
-// srpVerifier computes the SRP-6 salt and verifier for AzerothCore account creation.
-func srpVerifier(username, password string) (salt, verifier []byte, err error) {
-	g := big.NewInt(7)
-	N := new(big.Int)
-	N.SetString("894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7", 16)
+func (i *Init) bootstrapAccount(ctx context.Context, db *sql.DB, username string) error {
+	logger := logging.FromContext(ctx)
+	upper := strings.ToUpper(username)
 
-	salt = make([]byte, 32)
-	if _, err = rand.Read(salt); err != nil {
-		return
+	var existing int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM account WHERE username = ?", upper).Scan(&existing); err != nil {
+		return fmt.Errorf("check existing account: %w", err)
+	}
+	if existing > 0 {
+		logger.Info("account already exists, skipping bootstrap", "username", username)
+		return nil
 	}
 
-	h := sha1.New()
-	h.Write([]byte(strings.ToUpper(username) + ":" + strings.ToUpper(password)))
-	innerHash := h.Sum(nil)
-
-	h = sha1.New()
-	h.Write(salt)
-	h.Write(innerHash)
-	xHash := h.Sum(nil)
-
-	// Reverse bytes: treat the SHA1 output as a little-endian integer
-	for lo, hi := 0, len(xHash)-1; lo < hi; lo, hi = lo+1, hi-1 {
-		xHash[lo], xHash[hi] = xHash[hi], xHash[lo]
-	}
-	x := new(big.Int).SetBytes(xHash)
-
-	v := new(big.Int).Exp(g, x, N)
-
-	// Zero-pad to 32 bytes (big-endian), then reverse to little-endian for storage
-	vBE := make([]byte, 32)
-	copy(vBE[32-len(v.Bytes()):], v.Bytes())
-	verifier = make([]byte, 32)
-	for idx, b := range vBE {
-		verifier[31-idx] = b
+	password, err := generatePassword(24)
+	if err != nil {
+		return fmt.Errorf("generate password: %w", err)
 	}
 
-	return
-}
-
-type dbInfo struct {
-	host   string
-	port   string
-	user   string
-	pass   string
-	dbname string
-}
-
-func parseDBInfo(s string) (*dbInfo, error) {
-	parts := strings.SplitN(s, ";", 5)
-	if len(parts) != 5 {
-		return nil, fmt.Errorf("expected host;port;user;pass;dbname, got %q", s)
+	salt, verifier, err := generateVerifier(username, password)
+	if err != nil {
+		return fmt.Errorf("generate verifier: %w", err)
 	}
-	return &dbInfo{
-		host:   parts[0],
-		port:   parts[1],
-		user:   parts[2],
-		pass:   parts[3],
-		dbname: parts[4],
-	}, nil
+
+	logger.Info("bootstrapping account", "username", username, "gm_level", bootstrapGMLevel)
+
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO account
+			(username, salt, verifier, email, reg_mail, joindate, last_ip, last_attempt_ip,
+			 failed_logins, locked, lock_country, online, expansion, Flags,
+			 mutetime, mutereason, muteby, locale, os, recruiter, totaltime)
+		VALUES
+			(?, ?, ?, '', '', NOW(), '127.0.0.1', '127.0.0.1',
+			 0, 0, '00', 0, 2, 0,
+			 0, '', '', 0, '', 0, 0)
+	`, upper, salt, verifier); err != nil {
+		return fmt.Errorf("insert account: %w", err)
+	}
+
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO account_access (id, gmlevel, RealmID)
+		SELECT id, ?, -1 FROM account WHERE username = ?
+	`, bootstrapGMLevel, upper); err != nil {
+		return fmt.Errorf("insert account_access: %w", err)
+	}
+
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO web_bootstrap_credentials (username, password, created_at)
+		VALUES (?, ?, NOW())
+	`, upper, password); err != nil {
+		return fmt.Errorf("insert bootstrap credentials: %w", err)
+	}
+
+	return nil
 }
 
-func (d *dbInfo) dsn() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", d.user, d.pass, d.host, d.port, d.dbname)
-}
+const passwordCharset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func (d *dbInfo) adminDSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/", d.user, d.pass, d.host, d.port)
+// generatePassword generates a cryptographically random password. The
+// charset deliberately excludes spaces (and any non-alnum characters),
+// since generated passwords for the bootstrap accounts get passed as
+// space-delimited arguments to SOAP-issued AzerothCore console commands.
+func generatePassword(length int) (string, error) {
+	buf := make([]byte, length)
+	for idx := range buf {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(passwordCharset))))
+		if err != nil {
+			return "", err
+		}
+		buf[idx] = passwordCharset[n.Int64()]
+	}
+	return string(buf), nil
 }

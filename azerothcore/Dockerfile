@@ -51,4 +51,6 @@ USER acore
 
 WORKDIR /azerothcore
 
+EXPOSE 8080
+
 ENTRYPOINT ["/usr/bin/azerothcore"]

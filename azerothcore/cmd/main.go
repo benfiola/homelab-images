@@ -26,6 +26,7 @@ func main() {
 				authserverCmd(),
 				worldserverCmd(),
 				dbimportCmd(),
+				webCmd(),
 			},
 		}),
 	)
@@ -53,22 +54,16 @@ func initCmd() *cli.Command {
 				Sources: cli.EnvVars("AC_REALMLIST_ADDRESS"),
 			},
 			&cli.StringFlag{
-				Name:    "config",
-				Sources: cli.EnvVars("AC_CONFIG"),
-				Value:   "/config/config.yaml",
-			},
-			&cli.StringFlag{
-				Name:    "random-bot-account-prefix",
-				Sources: cli.EnvVars("AC_RANDOM_BOT_ACCOUNT_PREFIX"),
-				Value:   "RNDBOT",
+				Name:    "admin-username",
+				Sources: cli.EnvVars("AC_ADMIN_USERNAME"),
+				Value:   "admin",
 			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			i, err := internal.New(&internal.Opts{
-				GameDataURL:            c.String("game-data-url"),
-				RealmlistAddress:       c.String("realmlist-address"),
-				ConfigFile:             c.String("config"),
-				RandomBotAccountPrefix: c.String("random-bot-account-prefix"),
+				GameDataURL:      c.String("game-data-url"),
+				RealmlistAddress: c.String("realmlist-address"),
+				AdminUsername:    c.String("admin-username"),
 			})
 			if err != nil {
 				return err
@@ -112,6 +107,11 @@ func worldserverCmd() *cli.Command {
 			// migrations are the init step's responsibility (via dbimport)
 			os.Setenv("AC_UPDATES_ENABLE_DATABASES", "0")
 			os.Setenv("AC_DISABLE_INTERACTIVE", "1")
+			// the "web" command needs to reach this over SOAP from a
+			// separate container, so bind all interfaces rather than the
+			// conf.dist default of localhost-only
+			setDefaultEnv("AC_SOAP_ENABLED", "1")
+			setDefaultEnv("AC_SOAP_IP", "0.0.0.0")
 
 			if err := copyAllConfsIfMissing(); err != nil {
 				return err
@@ -157,6 +157,40 @@ func dbimportCmd() *cli.Command {
 				return err
 			}
 			return syscall.Exec(binary, []string{"dbimport"}, os.Environ())
+		},
+	}
+}
+
+func webCmd() *cli.Command {
+	return &cli.Command{
+		Name: "web",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "listen-address",
+				Sources: cli.EnvVars("AC_WEB_LISTEN_ADDRESS"),
+				Value:   ":8080",
+			},
+			&cli.StringFlag{
+				Name:     "soap-address",
+				Required: true,
+				Sources:  cli.EnvVars("AC_WEB_SOAP_ADDRESS"),
+			},
+			&cli.IntFlag{
+				Name:    "admin-gm-level-threshold",
+				Sources: cli.EnvVars("AC_WEB_ADMIN_GM_LEVEL_THRESHOLD"),
+				Value:   3,
+			},
+		},
+		Action: func(ctx context.Context, c *cli.Command) error {
+			w, err := internal.NewWeb(&internal.WebOpts{
+				ListenAddress:         c.String("listen-address"),
+				SOAPAddress:           c.String("soap-address"),
+				AdminGMLevelThreshold: int(c.Int("admin-gm-level-threshold")),
+			})
+			if err != nil {
+				return err
+			}
+			return w.Run(ctx)
 		},
 	}
 }

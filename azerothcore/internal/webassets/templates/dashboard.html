@@ -1,0 +1,40 @@
+{{define "content"}}
+<table class="accounts">
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>GUID</th>
+      <th>GM level</th>
+      <th>Status</th>
+      <th>Reset password</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Accounts}}
+    <tr>
+      <td>{{.Username}}</td>
+      <td>{{.ID}}</td>
+      <td>{{.GMLevel}}</td>
+      <td>
+        {{if .Locked}}<span class="badge badge-warn">locked</span>{{end}}
+        {{if .Online}}<span class="badge badge-ok">online</span>{{end}}
+      </td>
+      <td>
+        <form method="post" action="/accounts/{{.ID}}/reset-password" class="inline-form">
+          <input type="password" name="new_password" placeholder="New password" required>
+          <button type="submit">Reset</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/accounts/{{.ID}}/delete" class="inline-form" onsubmit="return confirm('Delete account {{.Username}}? This also deletes its characters.');">
+          <button type="submit" class="danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {{else}}
+    <tr><td colspan="6">No accounts yet.</td></tr>
+    {{end}}
+  </tbody>
+</table>
+{{end}}

@@ -190,6 +190,7 @@ func (r *BucketSyncPolicyReconciler) Reconcile(pctx context.Context, request con
 			Source:         policy.Spec.Source,
 			Destination:    policy.Spec.Destination,
 			Policy:         &policy.Name,
+			Timeout:        policy.Spec.Timeout,
 		},
 	}
 	err = r.Client.Create(ctx, sync)

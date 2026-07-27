@@ -26,7 +26,7 @@ const (
 	IntervalWaitForLock    = 15 * time.Second
 	IntervalWaitForRestore = 15 * time.Second
 
-	TimeoutSync = 5 * time.Minute
+	DefaultTimeoutSync = 5 * time.Minute
 )
 
 type BucketSyncReconciler struct {
@@ -93,9 +93,16 @@ func (r *BucketSyncReconciler) ensureLocked(ctx context.Context, sync *api.Bucke
 	return acquired, nil
 }
 
+func (r *BucketSyncReconciler) timeoutFor(sync *api.BucketSync) time.Duration {
+	if sync.Spec.Timeout != nil {
+		return sync.Spec.Timeout.Duration
+	}
+	return DefaultTimeoutSync
+}
+
 func (r *BucketSyncReconciler) isTimedOut(sync *api.BucketSync) bool {
 	now := time.Now().UTC()
-	timedOut := now.Sub(sync.CreationTimestamp.Time) > TimeoutSync
+	timedOut := now.Sub(sync.CreationTimestamp.Time) > r.timeoutFor(sync)
 	return timedOut
 }
 
@@ -262,7 +269,7 @@ func (r *BucketSyncReconciler) sync(ctx context.Context, sync *api.BucketSync) P
 	finished, successful := r.getJobStatus(job)
 	if !finished {
 		now := time.Now().UTC()
-		if now.Sub(job.CreationTimestamp.Time) > TimeoutSync {
+		if now.Sub(job.CreationTimestamp.Time) > r.timeoutFor(sync) {
 			return r.failRestore(ctx, sync, "sync timed out")
 		}
 		return PhaseResult{Result: controllerruntime.Result{RequeueAfter: IntervalWaitForRestore}}
