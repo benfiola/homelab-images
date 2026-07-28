@@ -120,3 +120,19 @@ func (c *soapClient) DeleteAccount(ctx context.Context, username string) error {
 	_, err := c.ExecuteCommand(ctx, fmt.Sprintf(".account delete %s", username))
 	return err
 }
+
+// CreateAccount creates a new account via AzerothCore's own
+// ".account create" GM command, at the default (player) GM level.
+func (c *soapClient) CreateAccount(ctx context.Context, username, password string) error {
+	_, err := c.ExecuteCommand(ctx, fmt.Sprintf(".account create %s %s", username, password))
+	return err
+}
+
+// SetGMLevel sets username's GM level via AzerothCore's own
+// ".account set gmlevel" GM command, applied across all realms (RealmID -1,
+// matching how bootstrapAccount and the account listing query already treat
+// GM level as realm-independent).
+func (c *soapClient) SetGMLevel(ctx context.Context, username string, level int) error {
+	_, err := c.ExecuteCommand(ctx, fmt.Sprintf(".account set gmlevel %s %d -1", username, level))
+	return err
+}

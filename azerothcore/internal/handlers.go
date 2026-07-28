@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,7 +16,9 @@ func (w *Web) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /logout", w.handleLogout)
 
 	mux.Handle("GET /{$}", w.requireAdmin(http.HandlerFunc(w.handleDashboard)))
+	mux.Handle("POST /accounts", w.requireAdmin(http.HandlerFunc(w.handleAdminCreateAccount)))
 	mux.Handle("POST /accounts/{id}/reset-password", w.requireAdmin(http.HandlerFunc(w.handleAdminResetPassword)))
+	mux.Handle("POST /accounts/{id}/gm-level", w.requireAdmin(http.HandlerFunc(w.handleAdminSetGMLevel)))
 	mux.Handle("POST /accounts/{id}/delete", w.requireAdmin(http.HandlerFunc(w.handleAdminDeleteAccount)))
 
 	mux.Handle("GET /account", w.requireAuth(http.HandlerFunc(w.handleAccountPage)))
@@ -118,6 +121,15 @@ func (w *Web) handleLogout(rw http.ResponseWriter, r *http.Request) {
 	http.Redirect(rw, r, "/login", http.StatusSeeOther)
 }
 
+// handleDashboard renders the account list. It also accepts two optional
+// query params, "patch_id"/"patch_gm_level", set only by the redirect at
+// the end of handleAdminSetGMLevel: AzerothCore applies ".account set
+// gmlevel" via an async DB write, so a plain re-query immediately after the
+// SOAP call can race that write and still show the old value even though
+// the command already succeeded. Carrying the just-applied value through
+// the redirect and patching it into the freshly-queried list sidesteps that
+// race without giving up the redirect (which is what keeps the address bar
+// on "/" and avoids a "confirm form resubmission" prompt on reload).
 func (w *Web) handleDashboard(rw http.ResponseWriter, r *http.Request) {
 	account := accountFromContext(r.Context())
 	accounts, err := listAccounts(r.Context(), w.db)
@@ -126,6 +138,18 @@ func (w *Web) handleDashboard(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "internal error", http.StatusInternalServerError)
 		return
 	}
+
+	if patchID, err := strconv.ParseInt(r.URL.Query().Get("patch_id"), 10, 64); err == nil {
+		if patchLevel, err := strconv.Atoi(r.URL.Query().Get("patch_gm_level")); err == nil {
+			for i := range accounts {
+				if accounts[i].ID == patchID {
+					accounts[i].GMLevel = patchLevel
+					break
+				}
+			}
+		}
+	}
+
 	data := pageData{Title: "Accounts", Account: account, IsAdmin: true, Accounts: accounts}
 	if msg := r.URL.Query().Get("msg"); msg != "" {
 		data.Flash = flashMessage(msg)
@@ -148,20 +172,55 @@ func containsWhitespace(s string) bool {
 	return strings.ContainsAny(s, " \t\n\r")
 }
 
-func (w *Web) handleAdminResetPassword(rw http.ResponseWriter, r *http.Request) {
+func (w *Web) handleAdminCreateAccount(rw http.ResponseWriter, r *http.Request) {
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+
+	if username == "" || containsWhitespace(username) {
+		w.renderDashboardError(rw, r, "Username must not be empty or contain whitespace.")
+		return
+	}
+	if password == "" || containsWhitespace(password) {
+		w.renderDashboardError(rw, r, "Password must not be empty or contain whitespace.")
+		return
+	}
+
+	if err := w.soap.CreateAccount(r.Context(), username, password); err != nil {
+		logging.FromContext(r.Context()).Error("soap create account", "error", err)
+		w.renderDashboardError(rw, r, "Failed to create account.")
+		return
+	}
+
+	http.Redirect(rw, r, "/?msg=created", http.StatusSeeOther)
+}
+
+// resolveTargetAccount looks up the account named by the "{id}" path value,
+// refusing to resolve the hidden web service account - it's excluded from
+// the dashboard listing precisely so it can't be reset/deleted/modified
+// through the UI, and that guarantee needs to hold even if an admin guesses
+// or otherwise obtains its id.
+func (w *Web) resolveTargetAccount(rw http.ResponseWriter, r *http.Request) (*Account, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		http.Error(rw, "invalid account id", http.StatusBadRequest)
-		return
+		return nil, false
 	}
 	target, err := getAccountByID(r.Context(), w.db, id)
 	if err != nil {
 		logging.FromContext(r.Context()).Error("get account", "error", err)
 		http.Error(rw, "internal error", http.StatusInternalServerError)
-		return
+		return nil, false
 	}
-	if target == nil {
+	if target == nil || target.Username == webServiceUsername {
 		http.Error(rw, "account not found", http.StatusNotFound)
+		return nil, false
+	}
+	return target, true
+}
+
+func (w *Web) handleAdminResetPassword(rw http.ResponseWriter, r *http.Request) {
+	target, ok := w.resolveTargetAccount(rw, r)
+	if !ok {
 		return
 	}
 
@@ -181,19 +240,16 @@ func (w *Web) handleAdminResetPassword(rw http.ResponseWriter, r *http.Request) 
 }
 
 func (w *Web) handleAdminDeleteAccount(rw http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(rw, "invalid account id", http.StatusBadRequest)
+	target, ok := w.resolveTargetAccount(rw, r)
+	if !ok {
 		return
 	}
-	target, err := getAccountByID(r.Context(), w.db, id)
-	if err != nil {
-		logging.FromContext(r.Context()).Error("get account", "error", err)
-		http.Error(rw, "internal error", http.StatusInternalServerError)
-		return
-	}
-	if target == nil {
-		http.Error(rw, "account not found", http.StatusNotFound)
+
+	// Refuse to delete the account the current session is logged in as -
+	// otherwise an admin can lock themselves out of the UI with no way
+	// back in short of direct DB access.
+	if session := accountFromContext(r.Context()); session.ID == target.ID {
+		w.renderDashboardError(rw, r, "You can't delete the account you're currently logged in as.")
 		return
 	}
 
@@ -204,6 +260,28 @@ func (w *Web) handleAdminDeleteAccount(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	http.Redirect(rw, r, "/?msg=deleted", http.StatusSeeOther)
+}
+
+func (w *Web) handleAdminSetGMLevel(rw http.ResponseWriter, r *http.Request) {
+	target, ok := w.resolveTargetAccount(rw, r)
+	if !ok {
+		return
+	}
+
+	level, err := strconv.Atoi(r.FormValue("gm_level"))
+	if err != nil || level < 0 || level > 3 {
+		w.renderDashboardError(rw, r, "GM level must be between 0 and 3.")
+		return
+	}
+
+	if err := w.soap.SetGMLevel(r.Context(), target.Username, level); err != nil {
+		logging.FromContext(r.Context()).Error("soap set gmlevel", "error", err)
+		w.renderDashboardError(rw, r, "Failed to update GM level.")
+		return
+	}
+
+	redirectURL := fmt.Sprintf("/?msg=gmlevel-updated&patch_id=%d&patch_gm_level=%d", target.ID, level)
+	http.Redirect(rw, r, redirectURL, http.StatusSeeOther)
 }
 
 func (w *Web) handleAccountPage(rw http.ResponseWriter, r *http.Request) {

@@ -136,6 +136,10 @@ func flashMessage(code string) string {
 		return "Password reset."
 	case "deleted":
 		return "Account deleted."
+	case "created":
+		return "Account created."
+	case "gmlevel-updated":
+		return "GM level updated."
 	case "password-changed":
 		return "Password changed."
 	default:

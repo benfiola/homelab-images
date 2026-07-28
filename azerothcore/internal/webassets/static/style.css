@@ -71,6 +71,10 @@ body {
   color: var(--muted);
 }
 
+.muted {
+  color: var(--muted);
+}
+
 button.link {
   background: none;
   border: none;

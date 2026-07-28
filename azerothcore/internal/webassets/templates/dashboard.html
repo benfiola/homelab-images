@@ -1,4 +1,15 @@
 {{define "content"}}
+<form method="post" action="/accounts" class="card narrow">
+  <label>Username
+    <input type="text" name="username" autocomplete="off" required>
+  </label>
+  <label>Password
+    <input type="password" name="password" autocomplete="new-password" required>
+  </label>
+  <button type="submit">Create account</button>
+</form>
+
+<h2>Accounts</h2>
 <table class="accounts">
   <thead>
     <tr>
@@ -11,11 +22,22 @@
     </tr>
   </thead>
   <tbody>
+    {{$self := .Account}}
     {{range .Accounts}}
     <tr>
       <td>{{.Username}}</td>
       <td>{{.ID}}</td>
-      <td>{{.GMLevel}}</td>
+      <td>
+        <form method="post" action="/accounts/{{.ID}}/gm-level" class="inline-form">
+          <select name="gm_level">
+            <option value="0" {{if eq .GMLevel 0}}selected{{end}}>0 - Player</option>
+            <option value="1" {{if eq .GMLevel 1}}selected{{end}}>1 - Moderator</option>
+            <option value="2" {{if eq .GMLevel 2}}selected{{end}}>2 - Game Master</option>
+            <option value="3" {{if eq .GMLevel 3}}selected{{end}}>3 - Administrator</option>
+          </select>
+          <button type="submit">Set</button>
+        </form>
+      </td>
       <td>
         {{if .Locked}}<span class="badge badge-warn">locked</span>{{end}}
         {{if .Online}}<span class="badge badge-ok">online</span>{{end}}
@@ -27,9 +49,13 @@
         </form>
       </td>
       <td>
+        {{if eq .ID $self.ID}}
+        <span class="muted">(you)</span>
+        {{else}}
         <form method="post" action="/accounts/{{.ID}}/delete" class="inline-form" onsubmit="return confirm('Delete account {{.Username}}? This also deletes its characters.');">
           <button type="submit" class="danger">Delete</button>
         </form>
+        {{end}}
       </td>
     </tr>
     {{else}}
