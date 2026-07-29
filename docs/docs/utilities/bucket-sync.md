@@ -13,3 +13,7 @@ A Kubernetes controller that automates periodic synchronization between object s
 | `deployment.image.tag` | `""` | Container image tag; defaults to the chart version |
 | `deployment.replicas` | `1` | Number of controller replicas |
 | `deployment.resources` | `null` | Kubernetes resource requests and limits |
+| `sourceEncryptionKey` | `null` | `EnvVarSource` providing the rclone `crypt` password used to wrap the source bucket |
+| `sourceEncryptionSalt` | `null` | `EnvVarSource` providing the rclone `crypt` password2 (salt) for the source bucket; requires `sourceEncryptionKey` |
+| `destinationEncryptionKey` | `null` | `EnvVarSource` providing the rclone `crypt` password used to wrap the destination bucket |
+| `destinationEncryptionSalt` | `null` | `EnvVarSource` providing the rclone `crypt` password2 (salt) for the destination bucket; requires `destinationEncryptionKey` |

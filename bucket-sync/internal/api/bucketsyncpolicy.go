@@ -24,6 +24,14 @@ type BucketSyncPolicySpec struct {
 	// +optional
 	DestinationEnv []corev1.EnvVar `json:"destinationEnv,omitempty"`
 	// +optional
+	SourceEncryptionKey *corev1.EnvVarSource `json:"sourceEncryptionKey,omitempty"`
+	// +optional
+	SourceEncryptionSalt *corev1.EnvVarSource `json:"sourceEncryptionSalt,omitempty"`
+	// +optional
+	DestinationEncryptionKey *corev1.EnvVarSource `json:"destinationEncryptionKey,omitempty"`
+	// +optional
+	DestinationEncryptionSalt *corev1.EnvVarSource `json:"destinationEncryptionSalt,omitempty"`
+	// +optional
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 }
 

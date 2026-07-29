@@ -157,6 +157,26 @@ func (in *BucketSyncPolicySpec) DeepCopyInto(out *BucketSyncPolicySpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.SourceEncryptionKey != nil {
+		in, out := &in.SourceEncryptionKey, &out.SourceEncryptionKey
+		*out = new(v1.EnvVarSource)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.SourceEncryptionSalt != nil {
+		in, out := &in.SourceEncryptionSalt, &out.SourceEncryptionSalt
+		*out = new(v1.EnvVarSource)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.DestinationEncryptionKey != nil {
+		in, out := &in.DestinationEncryptionKey, &out.DestinationEncryptionKey
+		*out = new(v1.EnvVarSource)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.DestinationEncryptionSalt != nil {
+		in, out := &in.DestinationEncryptionSalt, &out.DestinationEncryptionSalt
+		*out = new(v1.EnvVarSource)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Timeout != nil {
 		in, out := &in.Timeout, &out.Timeout
 		*out = new(metav1.Duration)
@@ -229,6 +249,26 @@ func (in *BucketSyncSpec) DeepCopyInto(out *BucketSyncSpec) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.SourceEncryptionKey != nil {
+		in, out := &in.SourceEncryptionKey, &out.SourceEncryptionKey
+		*out = new(v1.EnvVarSource)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.SourceEncryptionSalt != nil {
+		in, out := &in.SourceEncryptionSalt, &out.SourceEncryptionSalt
+		*out = new(v1.EnvVarSource)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.DestinationEncryptionKey != nil {
+		in, out := &in.DestinationEncryptionKey, &out.DestinationEncryptionKey
+		*out = new(v1.EnvVarSource)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.DestinationEncryptionSalt != nil {
+		in, out := &in.DestinationEncryptionSalt, &out.DestinationEncryptionSalt
+		*out = new(v1.EnvVarSource)
+		(*in).DeepCopyInto(*out)
 	}
 	if in.Policy != nil {
 		in, out := &in.Policy, &out.Policy

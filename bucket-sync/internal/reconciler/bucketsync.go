@@ -7,7 +7,7 @@ package reconciler
 
 import (
 	"context"
-	"fmt"
+	_ "embed"
 	"time"
 
 	"github.com/benfiola/homelab-images/bucket-sync/internal/api"
@@ -21,6 +21,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+//go:embed sync.sh
+var syncScript string
 
 const (
 	IntervalWaitForLock    = 15 * time.Second
@@ -136,8 +139,23 @@ func (r *BucketSyncReconciler) buildJob(sync *api.BucketSync) *batchv1.Job {
 	destEnv := r.prefixEnv(sync.Spec.DestinationEnv, "RCLONE_CONFIG_DESTINATION_")
 	env := append(sourceEnv, destEnv...)
 
-	source := fmt.Sprintf("source:%s", sync.Spec.Source)
-	destination := fmt.Sprintf("destination:%s", sync.Spec.Destination)
+	env = append(env,
+		corev1.EnvVar{Name: "SOURCE_BUCKET", Value: sync.Spec.Source},
+		corev1.EnvVar{Name: "DESTINATION_BUCKET", Value: sync.Spec.Destination},
+	)
+	if sync.Spec.SourceEncryptionKey != nil {
+		env = append(env, corev1.EnvVar{Name: "SOURCE_CRYPT_PASSWORD_PLAINTEXT", ValueFrom: sync.Spec.SourceEncryptionKey})
+	}
+	if sync.Spec.SourceEncryptionSalt != nil {
+		env = append(env, corev1.EnvVar{Name: "SOURCE_CRYPT_PASSWORD2_PLAINTEXT", ValueFrom: sync.Spec.SourceEncryptionSalt})
+	}
+	if sync.Spec.DestinationEncryptionKey != nil {
+		env = append(env, corev1.EnvVar{Name: "DESTINATION_CRYPT_PASSWORD_PLAINTEXT", ValueFrom: sync.Spec.DestinationEncryptionKey})
+	}
+	if sync.Spec.DestinationEncryptionSalt != nil {
+		env = append(env, corev1.EnvVar{Name: "DESTINATION_CRYPT_PASSWORD2_PLAINTEXT", ValueFrom: sync.Spec.DestinationEncryptionSalt})
+	}
+
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      sync.Name,
@@ -154,10 +172,10 @@ func (r *BucketSyncReconciler) buildJob(sync *api.BucketSync) *batchv1.Job {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:  "sync",
-							Image: "rclone/rclone:1.73.1",
-							Args:  []string{"sync", source, destination},
-							Env:   env,
+							Name:    "sync",
+							Image:   "rclone/rclone:1.73.1",
+							Command: []string{"/bin/sh", "-c", syncScript},
+							Env:     env,
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: ptr.Get(false),
 								Capabilities: &corev1.Capabilities{
@@ -196,8 +214,22 @@ func (r *BucketSyncReconciler) getJobStatus(job *batchv1.Job) (bool, bool) {
 	return false, false
 }
 
+func (r *BucketSyncReconciler) validateEncryption(sync *api.BucketSync) string {
+	if sync.Spec.SourceEncryptionSalt != nil && sync.Spec.SourceEncryptionKey == nil {
+		return "sourceEncryptionSalt is set without sourceEncryptionKey"
+	}
+	if sync.Spec.DestinationEncryptionSalt != nil && sync.Spec.DestinationEncryptionKey == nil {
+		return "destinationEncryptionSalt is set without destinationEncryptionKey"
+	}
+	return ""
+}
+
 func (r *BucketSyncReconciler) initialize(ctx context.Context, sync *api.BucketSync) PhaseResult {
 	logger := logging.FromContext(ctx)
+
+	if reason := r.validateEncryption(sync); reason != "" {
+		return r.failRestore(ctx, sync, reason)
+	}
 
 	acquired, err := r.ensureLocked(ctx, sync)
 	if err != nil {
