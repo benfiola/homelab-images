@@ -3,7 +3,6 @@ package internal
 import (
 	"crypto/subtle"
 	"net/http"
-	"os"
 	"sort"
 
 	"github.com/benfiola/homelab-images/shared/pkg/logging"
@@ -18,6 +17,8 @@ func (w *Web) routes(mux *http.ServeMux) {
 	mux.Handle("POST /settings", w.requireAuth(http.HandlerFunc(w.handleSaveSettings)))
 	mux.Handle("POST /settings/reboot", w.requireAuth(http.HandlerFunc(w.handleSaveAndReboot)))
 	mux.Handle("POST /reboot", w.requireAuth(http.HandlerFunc(w.handleReboot)))
+	mux.Handle("POST /resume", w.requireAuth(http.HandlerFunc(w.handleResume)))
+	mux.Handle("POST /pause", w.requireAuth(http.HandlerFunc(w.handlePause)))
 	mux.Handle("GET /history", w.requireAuth(http.HandlerFunc(w.handleHistory)))
 	mux.Handle("POST /history/{filename}/restore", w.requireAuth(http.HandlerFunc(w.handleRestoreHistory)))
 
@@ -105,7 +106,7 @@ func (w *Web) loadEditorData(title string) (pageData, error) {
 	if err != nil {
 		return pageData{}, err
 	}
-	data := pageData{Title: title, ShowNav: true}
+	data := pageData{Title: title, ShowNav: true, Paused: w.opts.Supervisor.Paused()}
 	protected := make([]KV, 0, len(ProtectedKeys))
 	for _, key := range ProtectedKeys {
 		v, ok := Get(kvs, key)
@@ -158,7 +159,7 @@ func (w *Web) saveFromForm(rw http.ResponseWriter, r *http.Request) bool {
 		w.renderEditorError(rw, r, "Couldn't parse settings: "+err.Error())
 		return false
 	}
-	if err := Save(w.opts.DataPath, edited, os.Environ(), w.opts.HistoryLimit); err != nil {
+	if err := Save(w.opts.Opts, edited); err != nil {
 		logger.Error("save settings", "err", err)
 		w.renderEditorError(rw, r, "Failed to save settings.")
 		return false
@@ -199,8 +200,28 @@ func (w *Web) handleReboot(rw http.ResponseWriter, r *http.Request) {
 	http.Redirect(rw, r, "/?msg=rebooting", http.StatusSeeOther)
 }
 
+func (w *Web) handleResume(rw http.ResponseWriter, r *http.Request) {
+	logger := logging.FromContext(r.Context())
+	if err := w.opts.Supervisor.Resume(r.Context(), "manual resume"); err != nil {
+		logger.Error("resume", "err", err)
+		w.renderEditorError(rw, r, "Failed to resume server.")
+		return
+	}
+	http.Redirect(rw, r, "/?msg=resumed", http.StatusSeeOther)
+}
+
+func (w *Web) handlePause(rw http.ResponseWriter, r *http.Request) {
+	logger := logging.FromContext(r.Context())
+	if err := w.opts.Supervisor.Pause(r.Context(), "manual pause"); err != nil {
+		logger.Error("pause", "err", err)
+		w.renderEditorError(rw, r, "Failed to pause server.")
+		return
+	}
+	http.Redirect(rw, r, "/?msg=paused", http.StatusSeeOther)
+}
+
 func (w *Web) handleHistory(rw http.ResponseWriter, r *http.Request) {
-	entries, err := ListHistory(w.opts.DataPath)
+	entries, err := ListHistory(w.opts.DataPath, w.opts.TZ)
 	if err != nil {
 		logging.FromContext(r.Context()).Error("list history", "err", err)
 		http.Error(rw, "internal error", http.StatusInternalServerError)
@@ -212,7 +233,7 @@ func (w *Web) handleHistory(rw http.ResponseWriter, r *http.Request) {
 func (w *Web) handleRestoreHistory(rw http.ResponseWriter, r *http.Request) {
 	filename := r.PathValue("filename")
 	logger := logging.FromContext(r.Context())
-	if err := RestoreHistory(w.opts.DataPath, filename, os.Environ(), w.opts.HistoryLimit); err != nil {
+	if err := RestoreHistory(w.opts.Opts, filename); err != nil {
 		logger.Error("restore history", "err", err, "filename", filename)
 		http.Error(rw, "failed to restore snapshot", http.StatusInternalServerError)
 		return

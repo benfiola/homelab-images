@@ -167,12 +167,12 @@ func Current(dataPath string) (string, error) {
 }
 
 // EnsureBootstrapped writes the embedded default config (with protected
-// fields reconciled from env) as the first history entry, if nothing's been
-// saved yet. Without this, PalServer's first launch would use its own blank
-// engine defaults - notably RESTAPIEnabled=False - breaking Reboot() until
-// an admin happened to save once through the UI.
-func EnsureBootstrapped(dataPath string, env []string) error {
-	names, err := historyFilenames(dataPath)
+// fields reconciled from opts) as the first history entry, if nothing's
+// been saved yet. Without this, PalServer's first launch would use its own
+// blank engine defaults - notably RESTAPIEnabled=False - breaking Reboot()
+// until an admin happened to save once through the UI.
+func EnsureBootstrapped(opts Opts) error {
+	names, err := historyFilenames(opts.DataPath)
 	if err != nil {
 		return err
 	}
@@ -183,8 +183,8 @@ func EnsureBootstrapped(dataPath string, env []string) error {
 	if err != nil {
 		return fmt.Errorf("parse embedded default settings: %w", err)
 	}
-	kvs = ReconcileProtectedFields(kvs, env)
-	return writeHistoryEntry(dataPath, Render(kvs))
+	kvs = ReconcileProtectedFields(kvs, opts)
+	return writeHistoryEntry(opts.DataPath, Render(kvs))
 }
 
 // Read returns the current settings, parsed.
@@ -196,8 +196,7 @@ func Read(dataPath string) ([]KV, error) {
 	return Parse(content)
 }
 
-func tzLocation() *time.Location {
-	tz := os.Getenv("TZ")
+func tzLocation(tz string) *time.Location {
 	if tz == "" {
 		return time.UTC
 	}
@@ -209,20 +208,20 @@ func tzLocation() *time.Location {
 }
 
 // Save reconciles edited (the non-protected keys submitted through the
-// editor) with the current env-derived protected fields and appends the
-// result as a new history entry - the new "current."
-func Save(dataPath string, edited []KV, env []string, historyLimit int) error {
-	kvs := ReconcileProtectedFields(edited, env)
-	if err := writeHistoryEntry(dataPath, Render(kvs)); err != nil {
+// editor) with the current protected fields and appends the result as a
+// new history entry - the new "current."
+func Save(opts Opts, edited []KV) error {
+	kvs := ReconcileProtectedFields(edited, opts)
+	if err := writeHistoryEntry(opts.DataPath, Render(kvs)); err != nil {
 		return fmt.Errorf("write settings: %w", err)
 	}
-	return pruneHistory(dataPath, historyLimit)
+	return pruneHistory(opts.DataPath, opts.AdminHistoryLimit)
 }
 
 // ListHistory returns past snapshots, newest first. Each entry's Diff shows
 // what would change if it were restored, relative to current - not a raw
 // content preview, which often shows nothing actually different.
-func ListHistory(dataPath string) ([]HistoryEntry, error) {
+func ListHistory(dataPath string, tz string) ([]HistoryEntry, error) {
 	names, err := historyFilenames(dataPath)
 	if err != nil {
 		return nil, err
@@ -233,7 +232,7 @@ func ListHistory(dataPath string) ([]HistoryEntry, error) {
 		return nil, err
 	}
 
-	loc := tzLocation()
+	loc := tzLocation(tz)
 	out := make([]HistoryEntry, 0, len(names))
 	for i, name := range names {
 		nanos, err := strconv.ParseInt(strings.TrimSuffix(name, ".ini"), 10, 64)
@@ -270,11 +269,11 @@ func ListHistory(dataPath string) ([]HistoryEntry, error) {
 }
 
 // RestoreHistory restores a past snapshot's non-protected settings via Save
-// - protected fields are discarded, current env vars always win over
-// whatever was deployed when the snapshot was taken. A restore is itself a
-// new entry, so it's automatically undoable like any other save.
-func RestoreHistory(dataPath string, filename string, env []string, historyLimit int) error {
-	path := filepath.Join(historyDir(dataPath), filepath.Base(filename))
+// - protected fields are discarded, current opts always win over whatever
+// was deployed when the snapshot was taken. A restore is itself a new
+// entry, so it's automatically undoable like any other save.
+func RestoreHistory(opts Opts, filename string) error {
+	path := filepath.Join(historyDir(opts.DataPath), filepath.Base(filename))
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read snapshot: %w", err)
@@ -284,7 +283,7 @@ func RestoreHistory(dataPath string, filename string, env []string, historyLimit
 		return fmt.Errorf("parse snapshot: %w", err)
 	}
 	kvs = Without(kvs, ProtectedKeys...)
-	return Save(dataPath, kvs, env, historyLimit)
+	return Save(opts, kvs)
 }
 
 // ReassertLive rewrites the live ini path from the current history entry.

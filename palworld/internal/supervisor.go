@@ -31,6 +31,12 @@ const (
 	gracefulShutdownTimeout = 30 * time.Second
 	sigtermTimeout          = 15 * time.Second
 	sigkillTimeout           = 10 * time.Second
+
+	// port the game binds when pause mode owns the public port itself -
+	// internal only, never exposed.
+	internalGamePort = 28211
+
+	pauseCheckInterval = 15 * time.Second
 )
 
 // Supervisor tracks the currently-running PalServer child so the web UI can
@@ -42,6 +48,7 @@ type Supervisor struct {
 	cycleStartedAt time.Time
 	doneCh         chan struct{}
 	shuttingDown   atomic.Bool
+	paused         atomic.Bool
 	restAPI        *RestAPIClient
 }
 
@@ -84,6 +91,15 @@ func (s *Supervisor) terminate(ctx context.Context, message string) error {
 		return nil
 	}
 
+	// a stopped process can't answer REST calls or act on signals - resume
+	// it first so the rest of this escalation actually reaches it.
+	if s.paused.Load() {
+		logger.Info("resuming paused server to shut it down")
+		if err := s.Resume(ctx, "shutdown requested"); err != nil {
+			logger.Warn("failed to resume paused server before shutdown", "error", err)
+		}
+	}
+
 	if err := s.restAPI.Save(ctx); err != nil {
 		logger.Warn("rest api save failed", "error", err)
 	}
@@ -115,8 +131,13 @@ func (s *Supervisor) Reboot(ctx context.Context) error {
 }
 
 // Healthy reports whether the server is running, or still within the
-// startup/restart grace period if not.
+// startup/restart grace period if not. A deliberate pause is a stable,
+// expected state - it must never look unhealthy just because it can
+// outlast the restart grace period.
 func (s *Supervisor) Healthy() bool {
+	if s.paused.Load() {
+		return true
+	}
 	s.mu.Lock()
 	cmd := s.cmd
 	startedAt := s.cycleStartedAt
@@ -125,6 +146,103 @@ func (s *Supervisor) Healthy() bool {
 		return true
 	}
 	return time.Since(startedAt) < unhealthyGracePeriod
+}
+
+// Paused reports whether the server is currently frozen (SIGSTOP) waiting
+// for a player to reconnect.
+func (s *Supervisor) Paused() bool {
+	return s.paused.Load()
+}
+
+// Pause freezes the running server (SIGSTOP) after an in-game save, so it
+// stops burning CPU while idle but resumes instantly with world state
+// intact - a real stop+relaunch would lose that. No-op if already paused
+// or nothing is running.
+func (s *Supervisor) Pause(ctx context.Context, reason string) error {
+	logger := logging.FromContext(ctx)
+	if s.paused.Load() {
+		return nil
+	}
+	cmd, _ := s.current()
+	if cmd == nil || cmd.Process == nil {
+		logger.Debug("pause requested but no server is running, skipping")
+		return nil
+	}
+	if err := s.restAPI.Save(ctx); err != nil {
+		logger.Warn("rest api save before pause failed", "error", err)
+	}
+	if err := cmd.Process.Signal(syscall.SIGSTOP); err != nil {
+		return fmt.Errorf("pause: %w", err)
+	}
+	s.paused.Store(true)
+	logger.Info("server paused", "reason", reason)
+	return nil
+}
+
+// Resume un-freezes a paused server (SIGCONT). No-op if not paused.
+func (s *Supervisor) Resume(ctx context.Context, reason string) error {
+	logger := logging.FromContext(ctx)
+	if !s.paused.Load() {
+		return nil
+	}
+	cmd, _ := s.current()
+	if cmd == nil || cmd.Process == nil {
+		// process exited while paused - don't leave the flag stuck set.
+		s.paused.Store(false)
+		return nil
+	}
+	if err := cmd.Process.Signal(syscall.SIGCONT); err != nil {
+		return fmt.Errorf("resume: %w", err)
+	}
+	s.paused.Store(false)
+	logger.Info("server resumed", "reason", reason)
+	return nil
+}
+
+// runIdleChecker polls player count and pauses the server once it's been
+// idle (zero players) for idleTimeout. Only started when pause mode is
+// enabled.
+func (s *Supervisor) runIdleChecker(ctx context.Context, idleTimeout time.Duration) {
+	logger := logging.FromContext(ctx)
+	ticker := time.NewTicker(pauseCheckInterval)
+	defer ticker.Stop()
+
+	var idleSince time.Time
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		if s.paused.Load() {
+			continue
+		}
+		if cmd, _ := s.current(); cmd == nil {
+			continue
+		}
+
+		count, err := s.restAPI.Players(ctx)
+		if err != nil {
+			// a REST hiccup should never masquerade as an empty server.
+			logger.Warn("failed to poll player count", "error", err)
+			continue
+		}
+		if count > 0 {
+			idleSince = time.Time{}
+			continue
+		}
+		if idleSince.IsZero() {
+			idleSince = time.Now()
+			logger.Debug("no players connected, idle timer started")
+			continue
+		}
+		if idle := time.Since(idleSince); idle >= idleTimeout {
+			if err := s.Pause(ctx, fmt.Sprintf("idle for %s", idle.Round(time.Second))); err != nil {
+				logger.Error("failed to pause idle server", "error", err)
+			}
+		}
+	}
 }
 
 func (s *Supervisor) HealthCheck(ctx context.Context) error {
@@ -141,10 +259,16 @@ type Opts struct {
 	GamePath            string
 	ManifestId          int
 	Port                int
-	ListenAddress       string
+	AdminAddress        string
 	AdminPassword       string
-	HistoryLimit        int
+	ServerName          string
+	ServerPassword      string
+	MaxPlayers          int
+	TZ                  string
+	AdminHistoryLimit   int
 	UpdateCheckInterval time.Duration
+	PauseEnabled        bool
+	PauseIdleTimeout    time.Duration
 }
 
 func (o *Opts) Validate() error {
@@ -201,21 +325,14 @@ func Main(ctx context.Context, opts Opts) error {
 		return err
 	}
 
-	env := os.Environ()
-	if err := EnsureBootstrapped(opts.DataPath, env); err != nil {
+	if err := EnsureBootstrapped(opts); err != nil {
 		return fmt.Errorf("bootstrap settings: %w", err)
 	}
 
-	restAPI := NewRestAPIClient(RestAPIPort(env), opts.AdminPassword)
+	restAPI := NewRestAPIClient(RestAPIPort, opts.AdminPassword)
 	supervisor := NewSupervisor(restAPI)
 
-	web, err := NewWeb(&WebOpts{
-		ListenAddress: opts.ListenAddress,
-		AdminPassword: opts.AdminPassword,
-		DataPath:      opts.DataPath,
-		HistoryLimit:  opts.HistoryLimit,
-		Supervisor:    supervisor,
-	})
+	web, err := NewWeb(&WebOpts{Opts: opts, Supervisor: supervisor})
 	if err != nil {
 		return fmt.Errorf("create web server: %w", err)
 	}
@@ -253,6 +370,31 @@ func Main(ctx context.Context, opts Opts) error {
 		})
 	}
 
+	gamePort := opts.Port
+	if opts.PauseEnabled {
+		gamePort = internalGamePort
+		relay, err := NewUDPRelay(
+			fmt.Sprintf(":%d", opts.Port),
+			fmt.Sprintf("127.0.0.1:%d", internalGamePort),
+			func() {
+				if supervisor.Paused() {
+					if err := supervisor.Resume(ctx, "incoming connection"); err != nil {
+						logger.Error("failed to resume server for incoming connection", "error", err)
+					}
+				}
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("create udp relay: %w", err)
+		}
+		go func() {
+			if err := relay.Run(ctx); err != nil {
+				logger.Error("udp relay exited", "error", err)
+			}
+		}()
+		go supervisor.runIdleChecker(ctx, opts.PauseIdleTimeout)
+	}
+
 	backoff := initialBackoff
 	for {
 		if err := ReassertLive(opts.DataPath); err != nil {
@@ -260,7 +402,7 @@ func Main(ctx context.Context, opts Opts) error {
 		}
 
 		logger.Info("starting server")
-		cmd := StartServer(opts.GamePath, opts.Port)
+		cmd := StartServer(opts.GamePath, gamePort)
 		if err := cmd.Start(); err != nil {
 			logger.Error("failed to start server", "error", err)
 			time.Sleep(backoff)

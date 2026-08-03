@@ -51,9 +51,9 @@ func DownloadGame(ctx context.Context, c *cache.Cache, manifestId int, gamePath 
 		}
 	}
 
-	serverScript := filepath.Join(gamePath, "PalServer.sh")
-	if err := os.Chmod(serverScript, 0755); err != nil {
-		logger.Error("failed to chmod server script", "path", serverScript, "error", err)
+	serverBin := filepath.Join(gamePath, "Pal", "Binaries", "Linux", "PalServer-Linux-Shipping")
+	if err := os.Chmod(serverBin, 0755); err != nil {
+		logger.Error("failed to chmod server binary", "path", serverBin, "error", err)
 	}
 
 	return manifestId, nil
@@ -92,11 +92,18 @@ func LinkSaveDir(gamePath, dataPath string) error {
 	return os.Symlink(dataPath, savedPath)
 }
 
-// StartServer builds the unstarted command to launch PalServer. The
-// supervisor starts/tracks/waits on it directly, since Reboot() needs to
-// signal the running process.
+// StartServer builds the unstarted command to launch the game binary
+// directly - not PalServer.sh, which forks its last command instead of
+// exec'ing it, leaving the shell as an idle parent and the real game
+// process as an untracked grandchild. Every signal we send (SIGTERM,
+// SIGKILL, SIGSTOP/SIGCONT for pause) needs to reach the actual game
+// process, so cmd.Process has to be it. The script's only other job -
+// copying steamclient.so into place - is already handled by
+// InstallSteamClient.
 func StartServer(gamePath string, port int) *exec.Cmd {
-	cmd := exec.Command("./PalServer.sh",
+	bin := filepath.Join(gamePath, "Pal", "Binaries", "Linux", "PalServer-Linux-Shipping")
+	cmd := exec.Command(bin,
+		"Pal",
 		fmt.Sprintf("-port=%d", port),
 		"-useperfthreads",
 		"-NoAsyncLoadingThread",

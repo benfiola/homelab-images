@@ -21,11 +21,8 @@ var rawStaticFS embed.FS
 var templatePages = []string{"login", "editor", "history"}
 
 type WebOpts struct {
-	ListenAddress string
-	AdminPassword string
-	DataPath      string
-	HistoryLimit  int
-	Supervisor    *Supervisor
+	Opts
+	Supervisor *Supervisor
 }
 
 type Web struct {
@@ -41,6 +38,7 @@ type pageData struct {
 	Flash     string
 	Error     string
 	Disabled  bool // true when ADMIN_PASSWORD is unset - UI is read-only/inert
+	Paused    bool
 	Protected []KV
 	Editable  string
 	History   []HistoryEntry
@@ -84,11 +82,11 @@ func (w *Web) Run(ctx context.Context) error {
 	mux := http.NewServeMux()
 	w.routes(mux)
 
-	ln, err := net.Listen("tcp", w.opts.ListenAddress)
+	ln, err := net.Listen("tcp", w.opts.AdminAddress)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
-	logger.Info("web ui listening", "address", w.opts.ListenAddress)
+	logger.Info("web ui listening", "address", w.opts.AdminAddress)
 
 	srv := &http.Server{Handler: mux}
 	go func() {
@@ -120,6 +118,10 @@ func flashMessage(code string) string {
 		return "Reboot triggered - settings will apply once the server comes back up."
 	case "restored":
 		return "Snapshot restored. Reboot to apply."
+	case "resumed":
+		return "Server resumed."
+	case "paused":
+		return "Server paused."
 	default:
 		return ""
 	}

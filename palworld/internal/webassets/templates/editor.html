@@ -1,4 +1,18 @@
 {{define "content"}}
+{{if .Paused}}
+<section class="card narrow">
+  <p class="muted">Server is paused - no players connected.</p>
+  <form method="post" action="/resume" class="inline-form">
+    <button type="submit">Resume Now</button>
+  </form>
+</section>
+{{else}}
+<section class="card narrow">
+  <form method="post" action="/pause" class="inline-form" onsubmit="return confirm('Pause the server now? Anyone currently connected will be disconnected.');">
+    <button type="submit">Pause Now</button>
+  </form>
+</section>
+{{end}}
 <section class="card">
   <h2>Server management <span class="muted">(controlled by deployment, not editable here)</span></h2>
   <dl class="details">
