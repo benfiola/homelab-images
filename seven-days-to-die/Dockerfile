@@ -3,7 +3,7 @@ FROM debian:bookworm-slim AS depotdownloader_installer
 ARG TARGETARCH
 ARG DEPOTDOWNLOADER_VERSION=3.4.0
 
-COPY install-depotdownloader.sh /install.sh
+COPY .shared/install-depotdownloader.sh /install.sh
 RUN /install.sh "${DEPOTDOWNLOADER_VERSION}" "${TARGETARCH}" /out
 
 FROM debian:bookworm-slim

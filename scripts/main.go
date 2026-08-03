@@ -333,11 +333,68 @@ func packageHelm() {
 	fmt.Printf("✓ Packaged Helm chart in %s\n", outputDir)
 }
 
+// stageSharedFiles scans Dockerfile for COPY/ADD instructions referencing a
+// .shared/<path> source and copies the corresponding file from
+// ../shared/<path> into place before the docker build runs, since Docker's
+// build context can't reach outside the component directory directly.
+// --from=<stage> copies are skipped - those reference a previous build
+// stage's filesystem, not the host build context. No-op for components
+// whose Dockerfile doesn't reference .shared/ at all.
+func stageSharedFiles() error {
+	content, err := os.ReadFile("Dockerfile")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	copyLineRegex := regexp.MustCompile(`(?m)^\s*(?:COPY|ADD)\s+(.*)$`)
+	sharedPathRegex := regexp.MustCompile(`\.shared/\S+`)
+
+	staged := map[string]bool{}
+	for _, lineMatch := range copyLineRegex.FindAllStringSubmatch(string(content), -1) {
+		line := lineMatch[1]
+		if strings.Contains(line, "--from=") {
+			continue
+		}
+		for _, relPath := range sharedPathRegex.FindAllString(line, -1) {
+			if staged[relPath] {
+				continue
+			}
+			staged[relPath] = true
+
+			src := filepath.Join("..", "shared", strings.TrimPrefix(relPath, ".shared/"))
+			info, err := os.Stat(src)
+			if err != nil {
+				return fmt.Errorf("failed to stat shared file %s: %w", src, err)
+			}
+			data, err := os.ReadFile(src)
+			if err != nil {
+				return fmt.Errorf("failed to read shared file %s: %w", src, err)
+			}
+			if err := os.MkdirAll(filepath.Dir(relPath), 0755); err != nil {
+				return fmt.Errorf("failed to create directory for %s: %w", relPath, err)
+			}
+			if err := os.WriteFile(relPath, data, info.Mode()); err != nil {
+				return fmt.Errorf("failed to write staged file %s: %w", relPath, err)
+			}
+			fmt.Printf("Staged shared file: %s -> %s\n", src, relPath)
+		}
+	}
+	return nil
+}
+
 func packageDocker() {
 	// Check if Dockerfile exists first
 	if _, err := os.Stat("Dockerfile"); err != nil {
 		fmt.Println("No Dockerfile found, skipping Docker build")
 		return
+	}
+
+	if err := stageSharedFiles(); err != nil {
+		fmt.Fprintf(os.Stderr, "error staging shared files: %v\n", err)
+		os.Exit(1)
 	}
 
 	version := os.Getenv("VERSION")

@@ -1,0 +1,27 @@
+{{define "content"}}
+<section class="card">
+  <h2>Server management <span class="muted">(controlled by deployment, not editable here)</span></h2>
+  <dl class="details">
+    {{range .Protected}}
+    <dt>{{.Key}}</dt>
+    <dd>{{.Value}}</dd>
+    {{end}}
+  </dl>
+</section>
+
+<form method="post" action="/settings" class="card">
+  <h2>Settings <a href="https://tech.palworldgame.com/optimize-game-balance" target="_blank" rel="noopener">reference &#8599;</a></h2>
+  <div class="ini-editor">
+    <pre class="ini-editor-highlight" aria-hidden="true"><code id="editable-highlight"></code></pre>
+    <textarea id="editable" name="editable" spellcheck="false" wrap="off" rows="24">{{.Editable}}</textarea>
+  </div>
+  <div class="actions">
+    <button type="submit">Save</button>
+    <button type="submit" formaction="/settings/reboot">Save &amp; Reboot</button>
+  </div>
+</form>
+
+<form method="post" action="/reboot" class="card narrow" onsubmit="return confirm('Reboot the server now?');">
+  <button type="submit" class="danger">Reboot Now</button>
+</form>
+{{end}}

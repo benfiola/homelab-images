@@ -1,0 +1,39 @@
+{{define "content"}}
+{{if not .History}}
+<p class="card">No snapshots yet - they're created automatically every time settings are saved.</p>
+{{else}}
+<table class="history">
+  <thead>
+    <tr><th>Saved</th><th>Changes if restored</th><th></th></tr>
+  </thead>
+  <tbody>
+    {{range .History}}
+    <tr>
+      <td>{{.DisplayTime}}</td>
+      <td class="muted">
+        {{if .IsCurrent}}
+        Current configuration
+        {{else if not .Diff}}
+        No changes from current
+        {{else}}
+        <ul class="diff">
+          {{range .Diff}}
+          <li><code>{{.Key}}</code>: {{.OldValue}} &rarr; {{.NewValue}}</li>
+          {{end}}
+          {{if .DiffMore}}<li>+{{.DiffMore}} more</li>{{end}}
+        </ul>
+        {{end}}
+      </td>
+      <td>
+        {{if not .IsCurrent}}
+        <form method="post" action="/history/{{.Filename}}/restore" class="inline-form" onsubmit="return confirm('Restore this snapshot? Current settings will be checkpointed first.');">
+          <button type="submit">Restore</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}

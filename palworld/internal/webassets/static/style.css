@@ -1,0 +1,310 @@
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --text: #1c1f26;
+  --muted: #6b7280;
+  --border: #e2e4e9;
+  --accent: #7c5cff;
+  --accent-text: #ffffff;
+  --danger: #d1435b;
+  --ok: #1f9d55;
+  --warn: #b98900;
+  --code-key: #7c5cff;
+  --code-val: #1c1f26;
+  --code-punct: #9aa0ab;
+  --code-comment: #6b7280;
+  --code-section: #1f9d55;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161b;
+    --surface: #1c1f26;
+    --text: #e7e9ee;
+    --muted: #9aa0ab;
+    --border: #2b2f38;
+    --accent: #9b82ff;
+    --accent-text: #14161b;
+    --danger: #ff6b81;
+    --ok: #37c874;
+    --warn: #e2b93b;
+    --code-key: #9b82ff;
+    --code-val: #e7e9ee;
+    --code-punct: #6b7280;
+    --code-comment: #9aa0ab;
+    --code-section: #37c874;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.topbar nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.topbar nav a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.topbar nav a:hover {
+  color: var(--accent);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+button.link:hover {
+  color: var(--accent);
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 0 0 1rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+h2 a {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card.narrow {
+  max-width: 360px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+input {
+  font: inherit;
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  font: inherit;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+button.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.flash {
+  color: var(--ok);
+}
+
+.error {
+  color: var(--danger);
+}
+
+ul.diff {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+ul.diff code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--code-key);
+}
+
+dl.details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+dl.details dt {
+  color: var(--muted);
+}
+
+dl.details dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+table.history {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+table.history th,
+table.history td {
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+table.history th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+table.history tr:last-child td {
+  border-bottom: none;
+}
+
+.inline-form {
+  display: inline-flex;
+}
+
+/*
+ * The editor is a transparent <textarea> stacked directly on top of a
+ * <pre><code> layer that holds the syntax-highlighted HTML (see
+ * ini-editor.js). Both share the exact same font metrics and padding so
+ * the two line up character-for-character; only the textarea's caret and
+ * selection are visible, everything else is the highlighted layer showing
+ * through.
+ */
+.ini-editor {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  height: 32rem;
+}
+
+.ini-editor textarea,
+.ini-editor pre {
+  margin: 0;
+  padding: 0.75rem;
+  border: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: auto;
+  position: absolute;
+  inset: 0;
+}
+
+.ini-editor textarea {
+  color: transparent;
+  caret-color: var(--text);
+  background: transparent;
+  resize: none;
+  z-index: 1;
+}
+
+.ini-editor pre {
+  color: var(--code-val);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tok-key {
+  color: var(--code-key);
+}
+
+.tok-val {
+  color: var(--code-val);
+}
+
+.tok-punct {
+  color: var(--code-punct);
+}
+
+.tok-comment {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.tok-section {
+  color: var(--code-section);
+  font-weight: 600;
+}

@@ -18,3 +18,4 @@ A Docker image that manages a Seven Days to Die dedicated server. Game content a
 | `MOD_URLS` | — | Space-separated URLs of mod archives to download and install |
 | `ROOT_URLS` | — | Space-separated URLs of files to install at the game root |
 | `AUTO_RESTART` | — | Duration between automatic server restarts (e.g. `24h`) |
+| `UPDATE_CHECK_INTERVAL` | — | How often to check for a new game version and restart to apply it (e.g. `1h`) |

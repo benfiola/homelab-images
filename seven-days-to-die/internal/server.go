@@ -38,13 +38,14 @@ const (
 )
 
 type Opts struct {
-	CachePath         string
-	DataPath          string
-	GamePath          string
-	ManifestId        int
-	DeleteDefaultMods bool
-	Mods              []Mod
-	AutoRestart       time.Duration
+	CachePath           string
+	DataPath            string
+	GamePath            string
+	ManifestId          int
+	DeleteDefaultMods   bool
+	Mods                []Mod
+	AutoRestart         time.Duration
+	UpdateCheckInterval time.Duration
 }
 
 func (o *Opts) Validate() error {
@@ -235,14 +236,17 @@ func WriteServerSettings(ctx context.Context, settings ServerSettings, path stri
 	return nil
 }
 
-func DownloadGame(ctx context.Context, c *cache.Cache, manifestId int, path string) error {
+// DownloadGame returns the manifest id it actually resolved/installed (not
+// just the possibly-0/"latest" input), so callers that want to watch for
+// future updates have a concrete baseline to compare against.
+func DownloadGame(ctx context.Context, c *cache.Cache, manifestId int, path string) (int, error) {
 	logger := logging.FromContext(ctx)
 
 	if manifestId == 0 {
 		logger.Info("determining latest manifest id", "app", AppId, "depot", DepotId)
 		latestManifestId, err := steam.GetLatestManifestId(ctx, AppId, DepotId)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		manifestId = latestManifestId
 	}
@@ -252,16 +256,16 @@ func DownloadGame(ctx context.Context, c *cache.Cache, manifestId int, path stri
 	if !c.Exists(ctx, key) {
 		logger.Info("downloading game", "app", AppId, "depot", DepotId, "manifest", manifestId)
 		if err := steam.Download(ctx, AppId, DepotId, manifestId, path); err != nil {
-			return err
+			return 0, err
 		}
 		logger.Info("caching game", "key", key)
 		if err := c.Put(ctx, key, path); err != nil {
-			return err
+			return 0, err
 		}
 	} else {
 		logger.Info("using cached game", "app", AppId, "depot", DepotId, "manifest", manifestId)
 		if err := c.Get(ctx, key, path); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
@@ -270,7 +274,7 @@ func DownloadGame(ctx context.Context, c *cache.Cache, manifestId int, path stri
 		logger.Error("failed to chmod server binary", "path", serverBin, "error", err)
 	}
 
-	return nil
+	return manifestId, nil
 }
 
 func InstallMod(ctx context.Context, c *cache.Cache, gamePath string, mod Mod) error {
@@ -449,7 +453,8 @@ func Main(ctx context.Context, opts Opts) error {
 		return err
 	}
 
-	if err := DownloadGame(ctx, c, opts.ManifestId, opts.GamePath); err != nil {
+	manifestId, err := DownloadGame(ctx, c, opts.ManifestId, opts.GamePath)
+	if err != nil {
 		return err
 	}
 
@@ -487,6 +492,13 @@ func Main(ctx context.Context, opts Opts) error {
 
 	if opts.AutoRestart > 0 {
 		SetupAutoRestart(ctx, opts.AutoRestart)
+	}
+
+	if opts.UpdateCheckInterval > 0 && opts.ManifestId == 0 {
+		steam.WatchForUpdate(ctx, AppId, DepotId, manifestId, opts.UpdateCheckInterval, func(ctx context.Context, newManifestId int) {
+			logging.FromContext(ctx).Info("game update available, shutting down to relaunch", "manifest", newManifestId)
+			ShutdownServer(ctx)
+		})
 	}
 
 	signalhandler.Setup(ctx, func(ctx context.Context, sig os.Signal) { ShutdownServer(ctx) })

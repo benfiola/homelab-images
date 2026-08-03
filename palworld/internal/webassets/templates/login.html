@@ -1,0 +1,12 @@
+{{define "content"}}
+{{if .Disabled}}
+<p class="card narrow">Management UI disabled - set <code>ADMIN_PASSWORD</code> to enable it.</p>
+{{else}}
+<form method="post" action="/login" class="card narrow">
+  <label>Password
+    <input type="password" name="password" autocomplete="current-password" autofocus required>
+  </label>
+  <button type="submit">Log in</button>
+</form>
+{{end}}
+{{end}}
