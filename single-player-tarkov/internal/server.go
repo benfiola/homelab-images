@@ -62,7 +62,7 @@ func GetLatestVersion(ctx context.Context) (string, error) {
 	logger.Debug("fetching releases from GitHub")
 
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get("https://api.github.com/repos/benfiola/game-server-images-single-player-tarkov/releases?per_page=100")
+	resp, err := client.Get("https://api.github.com/repos/benfiola/homelab-images-single-player-tarkov/releases?per_page=100")
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch releases: %w", err)
 	}
@@ -105,7 +105,7 @@ func DownloadGame(ctx context.Context, c *cache.Cache, version string, gamePath 
 		default:
 			return fmt.Errorf("unsupported architecture: %s", arch)
 		}
-		downloadURL := fmt.Sprintf("https://github.com/benfiola/game-server-images-single-player-tarkov/releases/download/%s/spt-%s-%s.tar.gz", version, version, arch)
+		downloadURL := fmt.Sprintf("https://github.com/benfiola/homelab-images-single-player-tarkov/releases/download/%s/spt-%s-%s.tar.gz", version, version, arch)
 
 		logger.Info("downloading SPT release", "version", version, "url", downloadURL)
 
