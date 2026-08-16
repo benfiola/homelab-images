@@ -1,4 +1,4 @@
-ARG HA_VERSION=2026.6.4
+ARG HA_VERSION=2026.8.2
 
 FROM alpine AS addons
 
