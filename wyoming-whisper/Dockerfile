@@ -3,10 +3,11 @@ FROM docker.io/rhasspy/wyoming-whisper:${WYOMING_WHISPER_VERSION}
 
 ARG TARGETARCH
 
-COPY install-cuda-12.sh /install-cuda-12.sh
+COPY install-cuda.sh /install-cuda.sh
 RUN <<EOF
 set -e
-/install-cuda-12.sh
-rm -rf /install-cuda-12.sh
-.venv/bin/pip3 install --force-reinstall ctranslate2==4.4.0
+/install-cuda.sh
+rm -rf /install-cuda.sh
+# ctranslate2 4.6.2 supports cuda 12.4
+.venv/bin/pip3 install --force-reinstall ctranslate2==4.6.2
 EOF
