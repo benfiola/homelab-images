@@ -25,8 +25,6 @@ export PATH=/usr/local/cuda-12.4/bin${PATH:+:${PATH}}
 export LD_LIBRARY_PATH=/usr/local/cuda-12.4/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 CUDA_ENV
 
-ln -sf /usr/local/cuda-12.4 /usr/local/cuda || true
-
 test -f /usr/local/cuda-12.4/lib64/libcublas.so.12 || (echo "ERROR: libcublas.so.12 not found" && exit 1)
 
 apt-get clean
