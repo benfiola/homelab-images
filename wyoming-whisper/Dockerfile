@@ -8,5 +8,5 @@ RUN <<EOF
 set -e
 /install-cuda-12.sh
 rm -rf /install-cuda-12.sh
-pip install --force-reinstall ctranslate2==4.4.0
+.venv/bin/pip3 install --force-reinstall ctranslate2==4.4.0
 EOF
