@@ -4,14 +4,13 @@ title: mdns-reflector
 
 # mdns-reflector
 
-A Kubernetes DaemonSet that forwards mDNS (Multicast DNS) broadcast packets between network interfaces on each node, enabling service discovery to work across network segments that would otherwise be isolated. It runs with minimal privileges (NET_RAW capability only) and supports automatic source interface detection from the default route.
+A Kubernetes DaemonSet that reflects mDNS (Multicast DNS) packets between network interfaces on each node, enabling service discovery to work across network segments that would otherwise be isolated. Reflection is bidirectional — any interface can both receive and forward packets to all other interfaces. By default, all non-loopback interfaces that are up and have an IP address are used; a specific subset can be provided via `config.interfaces` when only certain interfaces should participate.
 
 ## Helm Chart Values
 
 | Value | Default | Description |
 |-------|---------|-------------|
-| `config.sourceInterfaces` | `""` | Comma-separated interfaces to listen on; auto-detected from the default route if omitted |
-| `config.destInterfaces` | `""` | Comma-separated interfaces to forward mDNS packets to (required) |
+| `config.interfaces` | `""` | Comma-separated interfaces to reflect mDNS packets between; defaults to all non-loopback interfaces that are up |
 | `config.logLevel` | `""` | Log level: `debug`, `info`, `warn`, or `error` |
 | `config.logFormat` | `""` | Log format: `text` or `json` |
 | `daemonSet.image.tag` | `""` | Container image tag; defaults to the chart version |

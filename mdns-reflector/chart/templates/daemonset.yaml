@@ -14,13 +14,9 @@ spec:
       hostNetwork: {{ .Values.daemonSet.hostNetwork }}
       containers:
         - env:
-            {{- if .Values.config.sourceInterfaces }}
-            - name: SOURCE_INTERFACES
-              value: {{ .Values.config.sourceInterfaces | quote }}
-            {{- end }}
-            {{- if .Values.config.destInterfaces }}
-            - name: DEST_INTERFACES
-              value: {{ .Values.config.destInterfaces | quote }}
+            {{- if .Values.config.interfaces }}
+            - name: INTERFACES
+              value: {{ .Values.config.interfaces | quote }}
             {{- end }}
             {{- if .Values.config.logFormat }}
             - name: LOG_FORMAT

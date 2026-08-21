@@ -1,6 +1,5 @@
 config:
-  sourceInterfaces: ""
-  destInterfaces: ""
+  interfaces: ""
   logLevel: ""
   logFormat: ""
 daemonSet:

@@ -5,49 +5,35 @@ import (
 )
 
 type Opts struct {
-	SourceInterfaces string
-	DestInterfaces   string
+	Interfaces string
 }
 
 type MDNSReflector struct {
-	SourceInterfaces []string
-	DestInterfaces   []string
+	Interfaces []string
 }
 
 func New(opts *Opts) (*MDNSReflector, error) {
-	// Parse destination interfaces (required)
-	destInterfaces := parseInterfaces(opts.DestInterfaces)
-	if len(destInterfaces) == 0 {
-		return nil, fmt.Errorf("at least one destination interface must be specified")
-	}
+	interfaces := parseInterfaces(opts.Interfaces)
 
-	// Parse source interfaces (optional)
-	sourceInterfaces := parseInterfaces(opts.SourceInterfaces)
-
-	// If no source interfaces specified, try to auto-detect
-	if len(sourceInterfaces) == 0 {
-		detected, err := detectSourceInterface()
+	if len(interfaces) == 0 {
+		detected, err := detectInterfaces()
 		if err != nil {
-			return nil, fmt.Errorf("no source interfaces provided and auto-detection failed: %w", err)
+			return nil, fmt.Errorf("no interfaces provided and auto-detection failed: %w", err)
 		}
-		sourceInterfaces = []string{detected}
+		interfaces = detected
 	}
 
-	// Validate all interfaces exist and are up
-	for _, iface := range sourceInterfaces {
-		if err := validateInterface(iface); err != nil {
-			return nil, fmt.Errorf("invalid source interface: %w", err)
-		}
+	if len(interfaces) < 2 {
+		return nil, fmt.Errorf("at least two interfaces are required for reflection")
 	}
 
-	for _, iface := range destInterfaces {
+	for _, iface := range interfaces {
 		if err := validateInterface(iface); err != nil {
-			return nil, fmt.Errorf("invalid destination interface: %w", err)
+			return nil, fmt.Errorf("invalid interface: %w", err)
 		}
 	}
 
 	return &MDNSReflector{
-		SourceInterfaces: sourceInterfaces,
-		DestInterfaces:   destInterfaces,
+		Interfaces: interfaces,
 	}, nil
 }
