@@ -55,9 +55,9 @@ func (d *dedupCache) seen(pkt []byte) bool {
 }
 
 type ifaceConn struct {
-	iface *net.Interface
-	conn  *net.UDPConn
-	pconn *ipv4.PacketConn
+	iface    *net.Interface
+	recvConn *net.UDPConn // joined to multicast group; used only for reading
+	sendConn *net.UDPConn // plain UDP socket with IP_MULTICAST_IF set; used only for writing
 }
 
 func (r *MDNSReflector) Run(ctx context.Context) error {
@@ -68,8 +68,11 @@ func (r *MDNSReflector) Run(ctx context.Context) error {
 	ics := make([]ifaceConn, 0, len(r.Interfaces))
 	defer func() {
 		for _, ic := range ics {
-			if ic.conn != nil {
-				ic.conn.Close()
+			if ic.recvConn != nil {
+				ic.recvConn.Close()
+			}
+			if ic.sendConn != nil {
+				ic.sendConn.Close()
 			}
 		}
 	}()
@@ -80,17 +83,25 @@ func (r *MDNSReflector) Run(ctx context.Context) error {
 			return fmt.Errorf("failed to get interface %s: %w", ifName, err)
 		}
 
-		conn, err := net.ListenMulticastUDP("udp4", iface, &mdnsAddr)
+		recvConn, err := net.ListenMulticastUDP("udp4", iface, &mdnsAddr)
 		if err != nil {
 			return fmt.Errorf("failed to listen on multicast address for interface %s: %w", ifName, err)
 		}
 
-		p := ipv4.NewPacketConn(conn)
+		sendConn, err := net.ListenUDP("udp4", &net.UDPAddr{})
+		if err != nil {
+			return fmt.Errorf("failed to create send socket for interface %s: %w", ifName, err)
+		}
+
+		p := ipv4.NewPacketConn(sendConn)
 		if err := p.SetMulticastTTL(255); err != nil {
 			return fmt.Errorf("failed to set multicast TTL on interface %s: %w", ifName, err)
 		}
+		if err := p.SetMulticastInterface(iface); err != nil {
+			return fmt.Errorf("failed to set multicast interface on %s: %w", ifName, err)
+		}
 
-		ics = append(ics, ifaceConn{iface: iface, conn: conn, pconn: p})
+		ics = append(ics, ifaceConn{iface: iface, recvConn: recvConn, sendConn: sendConn})
 		logger.Debug("listening on interface", "interface", ifName)
 	}
 
@@ -142,9 +153,9 @@ func (r *MDNSReflector) reflectPackets(ctx context.Context, idx int, ics []iface
 	const maxBackoff = 5 * time.Second
 
 	for {
-		src.conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+		src.recvConn.SetReadDeadline(time.Now().Add(1 * time.Second))
 
-		n, _, err := src.conn.ReadFromUDP(buf)
+		n, _, err := src.recvConn.ReadFromUDP(buf)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				logger.Debug("read timeout on interface (no packets received)", "interface", srcIfName)
@@ -187,8 +198,7 @@ func (r *MDNSReflector) reflectPackets(ctx context.Context, idx int, ics []iface
 				continue
 			}
 			destIfName := r.Interfaces[i]
-			cm := &ipv4.ControlMessage{IfIndex: dst.iface.Index}
-			_, err := dst.pconn.WriteTo(packet, cm, &mdnsAddr)
+			_, err := dst.sendConn.WriteToUDP(packet, &mdnsAddr)
 			if err != nil {
 				logger.Error("failed to write to interface", "source", srcIfName, "dest", destIfName, "error", err)
 			} else {
