@@ -3,8 +3,14 @@ package internal
 import (
 	"fmt"
 	"net"
+	"os"
 	"strings"
 )
+
+func isHardwareInterface(name string) bool {
+	_, err := os.Lstat(fmt.Sprintf("/sys/class/net/%s/device", name))
+	return err == nil
+}
 
 func detectInterfaces() ([]string, error) {
 	interfaces, err := net.Interfaces()
@@ -22,6 +28,9 @@ func detectInterfaces() ([]string, error) {
 		}
 		addrs, err := iface.Addrs()
 		if err != nil || len(addrs) == 0 {
+			continue
+		}
+		if !isHardwareInterface(iface.Name) && iface.Name != "mdns0" {
 			continue
 		}
 		result = append(result, iface.Name)
