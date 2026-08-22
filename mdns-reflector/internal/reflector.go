@@ -79,8 +79,12 @@ func (r *MDNSReflector) Run(ctx context.Context) error {
 			return fmt.Errorf("failed to listen on multicast address for interface %s: %w", ifName, err)
 		}
 
-		if err := ipv4.NewPacketConn(conn).SetMulticastTTL(255); err != nil {
+		p := ipv4.NewPacketConn(conn)
+		if err := p.SetMulticastTTL(255); err != nil {
 			return fmt.Errorf("failed to set multicast TTL on interface %s: %w", ifName, err)
+		}
+		if err := p.SetMulticastInterface(iface); err != nil {
+			return fmt.Errorf("failed to set multicast interface on %s: %w", ifName, err)
 		}
 
 		conns = append(conns, conn)
