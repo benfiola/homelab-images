@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/benfiola/homelab-images/shared/pkg/logging"
+	"golang.org/x/net/ipv4"
 )
 
 const (
@@ -76,6 +77,10 @@ func (r *MDNSReflector) Run(ctx context.Context) error {
 		conn, err := net.ListenMulticastUDP("udp4", iface, &mdnsAddr)
 		if err != nil {
 			return fmt.Errorf("failed to listen on multicast address for interface %s: %w", ifName, err)
+		}
+
+		if err := ipv4.NewPacketConn(conn).SetMulticastTTL(255); err != nil {
+			return fmt.Errorf("failed to set multicast TTL on interface %s: %w", ifName, err)
 		}
 
 		conns = append(conns, conn)
