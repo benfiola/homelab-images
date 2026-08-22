@@ -89,7 +89,6 @@ func (r *MDNSReflector) Run(ctx context.Context) error {
 
 	logger.Info("mDNS reflector started", "interfaces", len(conns))
 
-	cache := newDedupCache()
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(conns))
 
@@ -98,6 +97,7 @@ func (r *MDNSReflector) Run(ctx context.Context) error {
 		ifName := r.Interfaces[i]
 		go func(idx int, srcConn *net.UDPConn, srcName string) {
 			defer wg.Done()
+			cache := newDedupCache()
 			if err := r.reflectPackets(ctx, idx, srcConn, srcName, conns, r.Interfaces, cache); err != nil {
 				errChan <- fmt.Errorf("reflection failed on %s: %w", srcName, err)
 			}
