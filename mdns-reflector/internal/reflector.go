@@ -54,16 +54,22 @@ func (d *dedupCache) seen(pkt []byte) bool {
 	return false
 }
 
+type ifaceConn struct {
+	iface *net.Interface
+	conn  *net.UDPConn
+	pconn *ipv4.PacketConn
+}
+
 func (r *MDNSReflector) Run(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
 
 	logger.Info("starting mdns reflector", "interfaces", r.Interfaces)
 
-	conns := make([]*net.UDPConn, 0, len(r.Interfaces))
+	ics := make([]ifaceConn, 0, len(r.Interfaces))
 	defer func() {
-		for _, conn := range conns {
-			if conn != nil {
-				conn.Close()
+		for _, ic := range ics {
+			if ic.conn != nil {
+				ic.conn.Close()
 			}
 		}
 	}()
@@ -83,29 +89,25 @@ func (r *MDNSReflector) Run(ctx context.Context) error {
 		if err := p.SetMulticastTTL(255); err != nil {
 			return fmt.Errorf("failed to set multicast TTL on interface %s: %w", ifName, err)
 		}
-		if err := p.SetMulticastInterface(iface); err != nil {
-			return fmt.Errorf("failed to set multicast interface on %s: %w", ifName, err)
-		}
 
-		conns = append(conns, conn)
+		ics = append(ics, ifaceConn{iface: iface, conn: conn, pconn: p})
 		logger.Debug("listening on interface", "interface", ifName)
 	}
 
-	logger.Info("mDNS reflector started", "interfaces", len(conns))
+	logger.Info("mDNS reflector started", "interfaces", len(ics))
 
 	var wg sync.WaitGroup
-	errChan := make(chan error, len(conns))
+	errChan := make(chan error, len(ics))
 
-	for i, conn := range conns {
+	for i := range ics {
 		wg.Add(1)
-		ifName := r.Interfaces[i]
-		go func(idx int, srcConn *net.UDPConn, srcName string) {
+		go func(idx int) {
 			defer wg.Done()
 			cache := newDedupCache()
-			if err := r.reflectPackets(ctx, idx, srcConn, srcName, conns, r.Interfaces, cache); err != nil {
-				errChan <- fmt.Errorf("reflection failed on %s: %w", srcName, err)
+			if err := r.reflectPackets(ctx, idx, ics, cache); err != nil {
+				errChan <- fmt.Errorf("reflection failed on %s: %w", r.Interfaces[idx], err)
 			}
-		}(i, conn, ifName)
+		}(i)
 	}
 
 	go func() {
@@ -126,8 +128,10 @@ func (r *MDNSReflector) Run(ctx context.Context) error {
 	return nil
 }
 
-func (r *MDNSReflector) reflectPackets(ctx context.Context, idx int, srcConn *net.UDPConn, srcIfName string, allConns []*net.UDPConn, allIfNames []string, cache *dedupCache) error {
+func (r *MDNSReflector) reflectPackets(ctx context.Context, idx int, ics []ifaceConn, cache *dedupCache) error {
 	logger := logging.FromContext(ctx)
+	src := ics[idx]
+	srcIfName := r.Interfaces[idx]
 	logger.Debug("reflectPackets started", "source_interface", srcIfName)
 
 	buf := make([]byte, packetBuffer)
@@ -138,9 +142,9 @@ func (r *MDNSReflector) reflectPackets(ctx context.Context, idx int, srcConn *ne
 	const maxBackoff = 5 * time.Second
 
 	for {
-		srcConn.SetReadDeadline(time.Now().Add(1 * time.Second))
+		src.conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 
-		n, _, err := srcConn.ReadFromUDP(buf)
+		n, _, err := src.conn.ReadFromUDP(buf)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				logger.Debug("read timeout on interface (no packets received)", "interface", srcIfName)
@@ -178,12 +182,13 @@ func (r *MDNSReflector) reflectPackets(ctx context.Context, idx int, srcConn *ne
 			continue
 		}
 
-		for i, destConn := range allConns {
+		for i, dst := range ics {
 			if i == idx {
 				continue
 			}
-			destIfName := allIfNames[i]
-			_, err := destConn.WriteToUDP(packet, &mdnsAddr)
+			destIfName := r.Interfaces[i]
+			cm := &ipv4.ControlMessage{IfIndex: dst.iface.Index}
+			_, err := dst.pconn.WriteTo(packet, cm, &mdnsAddr)
 			if err != nil {
 				logger.Error("failed to write to interface", "source", srcIfName, "dest", destIfName, "error", err)
 			} else {
