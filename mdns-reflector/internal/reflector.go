@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	packetBuffer = 512
+	packetBuffer = 9000
 	dedupTTL     = 500 * time.Millisecond
 )
 
@@ -110,11 +110,11 @@ func (r *MDNSReflector) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(ics))
 
+	cache := newDedupCache()
 	for i := range ics {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			cache := newDedupCache()
 			if err := r.reflectPackets(ctx, idx, ics, cache); err != nil {
 				errChan <- fmt.Errorf("reflection failed on %s: %w", r.Interfaces[idx], err)
 			}
