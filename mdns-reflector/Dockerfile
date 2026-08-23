@@ -1,13 +1,13 @@
 FROM debian:bookworm-slim
 
-ARG TARGETARCH
-
-RUN <<EOF
-apt -y update
-apt -y install procps
+RUN <<'EOF'
+set -e
+apt-get update
+apt-get install -y --no-install-recommends avahi-daemon
 rm -rf /var/lib/apt/lists/*
 EOF
 
-COPY .build/mdns-reflector_linux_${TARGETARCH} /usr/bin/mdns-reflector
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-ENTRYPOINT ["mdns-reflector"]
+ENTRYPOINT ["/entrypoint.sh"]
