@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -284,6 +285,20 @@ func (o *Opts) Validate() error {
 	return nil
 }
 
+// clearDir empties dir of its contents without removing dir itself.
+func clearDir(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // installGame downloads the game into opts.GamePath, finalizes the cache,
 // and (re)links the save directory - needed both at startup and whenever
 // steam.WatchForUpdate fires.
@@ -356,7 +371,8 @@ func Main(ctx context.Context, opts Opts) error {
 	if opts.UpdateCheckInterval > 0 {
 		steam.WatchForUpdate(ctx, AppId, DepotId, manifestId, opts.UpdateCheckInterval, func(ctx context.Context, newManifestId int) {
 			logger.Info("applying game update", "manifest", newManifestId)
-			if err := os.RemoveAll(opts.GamePath); err != nil {
+			// NOTE: GamePath has root owner, can only clear contents of directory
+			if err := clearDir(opts.GamePath); err != nil {
 				logger.Error("failed to clear game path before update", "error", err)
 				return
 			}
