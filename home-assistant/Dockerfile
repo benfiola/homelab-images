@@ -18,6 +18,15 @@ ARG TARGETARCH
 COPY --from=addons /addons /addons
 COPY rootfs/ /
 
+COPY patches/ /patches/
+COPY patch-*.sh /
+
+RUN <<EOF
+set -e
+for script in /patch-*.sh; do "$script"; done
+rm -r /patch-*.sh /patches
+EOF
+
 COPY install-addon-requirements.py /install.py
 RUN <<EOF
 set -e

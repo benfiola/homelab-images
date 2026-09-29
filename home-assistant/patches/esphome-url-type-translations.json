@@ -1,0 +1,23 @@
+{
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "url_type": "URL sent to the device"
+        },
+        "data_description": {
+          "url_type": "Which Home Assistant URL (media, TTS) is given to this device. Auto uses Home Assistant's default selection."
+        }
+      }
+    }
+  },
+  "selector": {
+    "url_type": {
+      "options": {
+        "auto": "Auto (Home Assistant default)",
+        "external": "External URL",
+        "internal": "Internal URL"
+      }
+    }
+  }
+}

@@ -1,0 +1,226 @@
+diff --git a/homeassistant/components/esphome/assist_satellite.py b/homeassistant/components/esphome/assist_satellite.py
+index 0182cacf9cf..466c955d56f 100644
+--- a/homeassistant/components/esphome/assist_satellite.py
++++ b/homeassistant/components/esphome/assist_satellite.py
+@@ -37,7 +37,6 @@ from homeassistant.components.intent import (
+     TimerInfo,
+     async_register_timer_handler,
+ )
+-from homeassistant.components.media_player import async_process_play_media_url
+ from homeassistant.const import Platform
+ from homeassistant.core import HomeAssistant, callback
+ from homeassistant.helpers import entity_registry as er
+@@ -51,6 +50,7 @@ from .entity import EsphomeAssistEntity, convert_api_error_ha_error
+ from .entry_data import ESPHomeConfigEntry
+ from .enum_mapper import EsphomeEnumMapper
+ from .ffmpeg_proxy import async_create_proxy_url
++from .url import async_process_device_media_url
+ from .wav_parser import stream_wav
+ 
+ PARALLEL_UPDATES = 0
+@@ -395,7 +395,9 @@ class EsphomeAssistSatellite(
+             assert event.data is not None
+             if tts_output := event.data["tts_output"]:
+                 path = tts_output["url"]
+-                url = async_process_play_media_url(self.hass, path)
++                url = async_process_device_media_url(
++                    self.hass, self.config_entry.entry_id, path
++                )
+                 data_to_send = {"url": url}
+ 
+                 assert self._entry_data.device_info is not None
+@@ -432,7 +434,9 @@ class EsphomeAssistSatellite(
+             assert event.data is not None
+             if tts_output := event.data.get("tts_output"):
+                 path = tts_output["url"]
+-                url = async_process_play_media_url(self.hass, path)
++                url = async_process_device_media_url(
++                    self.hass, self.config_entry.entry_id, path
++                )
+                 data_to_send = {"url": url}
+         elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_RUN_END:
+             if self._tts_streaming_task is None:
+@@ -503,13 +507,17 @@ class EsphomeAssistSatellite(
+                 )
+ 
+                 if not is_media_tts:
+-                    media_id = async_process_play_media_url(
+-                        self.hass, make_proxy_url(media_url=media_id)
++                    media_id = async_process_device_media_url(
++                        self.hass,
++                        self.config_entry.entry_id,
++                        make_proxy_url(media_url=media_id),
+                     )
+ 
+                 if preannounce_media_id:
+-                    preannounce_media_id = async_process_play_media_url(
+-                        self.hass, make_proxy_url(media_url=preannounce_media_id)
++                    preannounce_media_id = async_process_device_media_url(
++                        self.hass,
++                        self.config_entry.entry_id,
++                        make_proxy_url(media_url=preannounce_media_id),
+                     )
+ 
+         await self.cli.send_voice_assistant_announcement_await_response(
+diff --git a/homeassistant/components/esphome/config_flow.py b/homeassistant/components/esphome/config_flow.py
+index b3d8a1378b4..f10d61eb329 100644
+--- a/homeassistant/components/esphome/config_flow.py
++++ b/homeassistant/components/esphome/config_flow.py
+@@ -58,11 +58,16 @@ from .const import (
+     CONF_DEVICE_NAME,
+     CONF_NOISE_PSK,
+     CONF_SUBSCRIBE_LOGS,
++    CONF_URL_TYPE,
+     DEFAULT_ALLOW_SERVICE_CALLS,
+     DEFAULT_BLUETOOTH_SCANNING_MODE,
+     DEFAULT_NEW_CONFIG_ALLOW_ALLOW_SERVICE_CALLS,
+     DEFAULT_PORT,
++    DEFAULT_URL_TYPE,
+     DOMAIN,
++    URL_TYPE_AUTO,
++    URL_TYPE_EXTERNAL,
++    URL_TYPE_INTERNAL,
+ )
+ from .dashboard import async_get_or_create_dashboard_manager, async_set_dashboard_info
+ from .encryption_key_storage import async_get_encryption_key_storage
+@@ -1014,6 +1019,16 @@ class OptionsFlowHandler(OptionsFlowWithReload):
+                 CONF_SUBSCRIBE_LOGS,
+                 default=options.get(CONF_SUBSCRIBE_LOGS, False),
+             ): bool,
++            vol.Required(
++                CONF_URL_TYPE,
++                default=options.get(CONF_URL_TYPE, DEFAULT_URL_TYPE),
++            ): SelectSelector(
++                SelectSelectorConfig(
++                    options=[URL_TYPE_AUTO, URL_TYPE_INTERNAL, URL_TYPE_EXTERNAL],
++                    translation_key="url_type",
++                    mode=SelectSelectorMode.DROPDOWN,
++                )
++            ),
+         }
+         if _entry_has_bluetooth_scanner(self.config_entry):
+             schema[
+diff --git a/homeassistant/components/esphome/const.py b/homeassistant/components/esphome/const.py
+index 508065b091c..c4cca67beab 100644
+--- a/homeassistant/components/esphome/const.py
++++ b/homeassistant/components/esphome/const.py
+@@ -19,12 +19,17 @@ ESPHOME_DATA: HassKey[DomainData] = HassKey(DOMAIN)
+ 
+ CONF_ALLOW_SERVICE_CALLS = "allow_service_calls"
+ CONF_SUBSCRIBE_LOGS = "subscribe_logs"
++CONF_URL_TYPE = "url_type"
+ CONF_DEVICE_NAME = "device_name"
+ CONF_NOISE_PSK = "noise_psk"
+ CONF_BLUETOOTH_MAC_ADDRESS = "bluetooth_mac_address"
+ CONF_BLUETOOTH_SCANNING_MODE = "bluetooth_scanning_mode"
+ 
+ DEFAULT_ALLOW_SERVICE_CALLS = True
++URL_TYPE_AUTO = "auto"
++URL_TYPE_INTERNAL = "internal"
++URL_TYPE_EXTERNAL = "external"
++DEFAULT_URL_TYPE = URL_TYPE_AUTO
+ DEFAULT_NEW_CONFIG_ALLOW_ALLOW_SERVICE_CALLS = False
+ DEFAULT_BLUETOOTH_SCANNING_MODE = BluetoothScanningMode.AUTO.value
+ 
+diff --git a/homeassistant/components/esphome/media_player.py b/homeassistant/components/esphome/media_player.py
+index 1dd19204f26..8b18392d5dc 100644
+--- a/homeassistant/components/esphome/media_player.py
++++ b/homeassistant/components/esphome/media_player.py
+@@ -26,7 +26,6 @@ from homeassistant.components.media_player import (
+     MediaPlayerEntityFeature,
+     MediaPlayerState,
+     MediaType,
+-    async_process_play_media_url,
+ )
+ from homeassistant.core import callback
+ 
+@@ -39,6 +38,7 @@ from .entity import (
+ )
+ from .enum_mapper import EsphomeEnumMapper
+ from .ffmpeg_proxy import async_create_proxy_url
++from .url import async_process_device_media_url
+ 
+ PARALLEL_UPDATES = 0
+ 
+@@ -140,7 +140,9 @@ class EsphomeMediaPlayer(
+             )
+             media_id = sourced_media.url
+ 
+-        media_id = async_process_play_media_url(self.hass, media_id)
++        media_id = async_process_device_media_url(
++            self.hass, self._entry_data.entry_id, media_id
++        )
+         announcement = kwargs.get(ATTR_MEDIA_ANNOUNCE)
+         bypass_proxy = kwargs.get(ATTR_MEDIA_EXTRA, {}).get(ATTR_BYPASS_PROXY)
+         supported_formats: list[MediaPlayerSupportedFormat] | None = (
+@@ -230,7 +232,9 @@ class EsphomeMediaPlayer(
+         )
+ 
+         # Resolve URL
+-        return async_process_play_media_url(self.hass, proxy_url)
++        return async_process_device_media_url(
++            self.hass, self._entry_data.entry_id, proxy_url
++        )
+ 
+     @override
+     async def async_browse_media(
+diff --git a/homeassistant/components/esphome/strings.json b/homeassistant/components/esphome/strings.json
+index 0d0c6f6dbb4..0b0435bbe24 100644
+--- a/homeassistant/components/esphome/strings.json
++++ b/homeassistant/components/esphome/strings.json
+@@ -210,17 +210,26 @@
+         "data": {
+           "allow_service_calls": "Allow the device to perform Home Assistant actions.",
+           "bluetooth_scanning_mode": "Bluetooth scanning mode",
+-          "subscribe_logs": "Subscribe to logs from the device."
++          "subscribe_logs": "Subscribe to logs from the device.",
++          "url_type": "URL sent to the device"
+         },
+         "data_description": {
+           "allow_service_calls": "When enabled, ESPHome devices can perform Home Assistant actions or send events. Only enable this if you trust the device.",
+           "bluetooth_scanning_mode": "Auto is recommended for most setups. It saves battery on your Bluetooth devices while still catching new devices and updates quickly.",
+-          "subscribe_logs": "When enabled, the device will send logs to Home Assistant and you can view them in the logs panel."
++          "subscribe_logs": "When enabled, the device will send logs to Home Assistant and you can view them in the logs panel.",
++          "url_type": "Which Home Assistant URL (media, TTS) is given to this device. Auto uses Home Assistant's default selection."
+         }
+       }
+     }
+   },
+   "selector": {
++    "url_type": {
++      "options": {
++        "auto": "Auto (Home Assistant default)",
++        "external": "External URL",
++        "internal": "Internal URL"
++      }
++    },
+     "bluetooth_scanning_mode": {
+       "options": {
+         "active": "Active (uses more device battery, fastest updates)",
+diff --git a/homeassistant/components/esphome/url.py b/homeassistant/components/esphome/url.py
+new file mode 100644
+index 00000000000..77bbbce3145
+--- /dev/null
++++ b/homeassistant/components/esphome/url.py
+@@ -0,0 +1,21 @@
++"""Helpers for building URLs that are sent to ESPHome devices."""
++
++from __future__ import annotations
++
++from homeassistant.components.media_player import async_process_play_media_url
++from homeassistant.core import HomeAssistant
++from homeassistant.helpers.network import get_url
++
++from .const import CONF_URL_TYPE, DEFAULT_URL_TYPE, URL_TYPE_AUTO, URL_TYPE_EXTERNAL
++
++
++def async_process_device_media_url(
++    hass: HomeAssistant, entry_id: str, media_content_id: str
++) -> str:
++    """Sign a media URL for a device, honoring its configured URL type."""
++    entry = hass.config_entries.async_get_entry(entry_id)
++    url_type = entry.options.get(CONF_URL_TYPE, DEFAULT_URL_TYPE) if entry else None
++    if url_type not in (None, URL_TYPE_AUTO) and media_content_id.startswith("/"):
++        base_url = get_url(hass, prefer_external=url_type == URL_TYPE_EXTERNAL)
++        media_content_id = f"{base_url}{media_content_id}"
++    return async_process_play_media_url(hass, media_content_id)
