@@ -1,4 +1,4 @@
-FROM ghcr.io/benfiola/homelab-images/lvm2:1.0.6 AS lvm2
+FROM ghcr.io/benfiola/homelab-images/lvm2:1.1.0 AS lvm2
 
 FROM debian:trixie-slim
 
