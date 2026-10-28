@@ -10,17 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "22.21.0"
+          node-version: "24.22.1"
       - name: install tools
         run: BIN=/usr/local/bin make install-tools
       - name: build docs
         run: make build-docs
       - name: upload docs
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: .build
 
@@ -38,4 +38,4 @@ jobs:
     steps:
       - name: deploy docs
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

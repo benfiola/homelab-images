@@ -126,10 +126,11 @@ diff --git a/homeassistant/components/esphome/media_player.py b/homeassistant/co
 index 1dd19204f26..8b18392d5dc 100644
 --- a/homeassistant/components/esphome/media_player.py
 +++ b/homeassistant/components/esphome/media_player.py
-@@ -26,7 +26,6 @@ from homeassistant.components.media_player import (
+@@ -26,8 +26,7 @@ from homeassistant.components.media_player import (
      MediaPlayerEntityFeature,
      MediaPlayerState,
      MediaType,
+     RepeatMode,
 -    async_process_play_media_url,
  )
  from homeassistant.core import callback

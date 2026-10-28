@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="1.7.1"
+VERSION="1.7.2"
 DEST="${ADDONS_DIR}/custom_components/llmvision"
 BLUEPRINT_DEST="${ADDONS_DIR}/blueprints/automation"
 

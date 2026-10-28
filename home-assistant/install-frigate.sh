@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="5.15.4"
+VERSION="5.15.6"
 DEST="${ADDONS_DIR}/custom_components/frigate"
 
 apk add --no-cache curl

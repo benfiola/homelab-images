@@ -1,6 +1,6 @@
 FROM ghcr.io/benfiola/homelab-images/lvm2:1.0.6 AS lvm2
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 ARG TARGETARCH
 

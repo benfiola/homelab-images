@@ -20,13 +20,13 @@
       "moby": true
     },
     "ghcr.io/devcontainers/features/go:1": {
-      "version": "1.25.8"
+      "version": "1.27.3"
     },
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "22.21.0"
+      "version": "24.22.1"
     }
   },
-  "image": "debian:bookworm-slim",
+  "image": "debian:trixie-slim",
   "mounts": [
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/root/.claude,type=bind,consistency=cached"
   ],

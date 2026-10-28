@@ -1,6 +1,6 @@
-ARG LVM2_VERSION=2.03.38
+ARG LVM2_VERSION=2.03.43
 
-FROM debian:bookworm-slim AS builder
+FROM debian:trixie-slim AS builder
 
 ARG LVM2_VERSION
 
@@ -20,6 +20,6 @@ RUN apt-get update && \
 COPY build.sh /tmp/build.sh
 RUN chmod +x /tmp/build.sh && /tmp/build.sh "${LVM2_VERSION}" /lvm2.tar.gz
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 COPY --from=builder /lvm2.tar.gz /lvm2.tar.gz

@@ -1,29 +1,23 @@
-diff --git a/music_assistant/controllers/streams/controller.py b/music_assistant/controllers/streams/controller.py
-index 79ebc954d..42e313b7f 100644
 --- a/music_assistant/controllers/streams/controller.py
 +++ b/music_assistant/controllers/streams/controller.py
-@@ -100,6 +100,8 @@ if TYPE_CHECKING:
-
+@@ -140,6 +140,8 @@
+ 
  isfile = wrap(os.path.isfile)
-
+ 
 +BASE_URL_OVERRIDE_ENVNAME = "MASS_BASE_URL"
 +
-
- def _streaming_wav_header(output_format: AudioFormat) -> bytes:
-     """Build a WAV header with open-ended (0xFFFFFFFF) RIFF/data sizes for live streams."""
-@@ -354,10 +356,14 @@ class StreamsController(CoreController):
-             self.publish_ip,
-             self.publish_port,
+ 
+ def _volume_normalization_preference_options() -> list[ConfigValueOption]:
+     """Return the normalization modes that can be picked as a preference."""
+@@ -2365,7 +2367,10 @@
          )
-+        base_url = os.environ.get(BASE_URL_OVERRIDE_ENVNAME) or (
-+            f"http://{format_ip_for_url(str(self.publish_ip))}:{self.publish_port}"
+         # the single address players are handed, taken from the top of the ranked list
+         self.publish_ip = self._publish_addresses[0]
+-        self._base_url = f"http://{format_ip_for_url(self.publish_ip)}:{self.publish_port}"
++        self._base_url = os.environ.get(BASE_URL_OVERRIDE_ENVNAME) or (
++            f"http://{format_ip_for_url(self.publish_ip)}:{self.publish_port}"
 +        )
-+        self.logger.info("Streams base URL: %s", base_url)
-         await self._server.setup(
-             bind_ip=bind_ip,
-             bind_port=cast("int", self.publish_port),
--            base_url=f"http://{format_ip_for_url(str(self.publish_ip))}:{self.publish_port}",
-+            base_url=base_url,
-             static_routes=[
-                 (
-                     "*",
++        self.logger.info("Streams base URL: %s", self._base_url)
+ 
+ 
+ def _same_ip_family(ip: str, other_ip: str) -> bool:

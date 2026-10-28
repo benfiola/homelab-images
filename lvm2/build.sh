@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds LVM2
-# Should be run in a debian:bookworm-slim image
+# Should be run in a debian:trixie-slim image
 # Requires the following (debian) packages: curl build-essential pkg-config libaio-dev libdevmapper-dev libudev-dev tar xfslibs-dev
 set -e
 
@@ -22,9 +22,9 @@ mkdir -p "${TEMP_DIR}/source"
 tar xvzf "${TEMP_DIR}/archive.tar.gz" -C "${TEMP_DIR}/source" --strip-components=1
 rm -f "${TEMP_DIR}/archive.tar.gz"
 
-mkdir -p "${TEMP_DIR}/build"
-cd "${TEMP_DIR}/build"
-"${TEMP_DIR}/source/configure" \
+# build in-tree: out-of-tree builds fail from 2.03.41 (missing man/lvm-index.7_gen)
+cd "${TEMP_DIR}/source"
+./configure \
   --prefix=/usr \
   --sysconfdir=/etc \
   --sbindir=/sbin \

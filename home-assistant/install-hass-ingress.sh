@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="1.3.1"
+VERSION="1.4.0"
 DEST="${ADDONS_DIR}/custom_components/ingress"
 
 apk add --no-cache curl libarchive-tools
