@@ -63,6 +63,12 @@
       "groupName": "kubernetes libraries"
     },
     {
+      "description": "VERSIONS: an image version held in a bare constant (annotated with '# renovate:') has nowhere to put a digest, so don't pin it.",
+      "matchManagers": ["custom.regex"],
+      "matchDatasources": ["docker"],
+      "pinDigests": false
+    },
+    {
       "description": "VERSIONS: only even (LTS) node majors.",
       "matchDepNames": ["node"],
       "allowedVersions": "/^\\d*[02468]\\./"
