@@ -24,11 +24,14 @@ Versions held back for this environment are marked so they stay visible in the d
 # renovate-pinned: depName=cuda currentValue=12.4 reason=matches the host GPU driver
 ```
 
+## Releases
+
+Merging an update releases every component whose files changed, including the parts of `shared/` it imports. Commit scopes are not used.
+
 ## Rule types
 
 Each rule in `renovate.json` starts its `description` with its type:
 
-- `RELEASES`: the commit scope an update gets. The publish workflow releases whichever component the scope names.
 - `GROUPING`: updates that must land in one PR.
 - `VERSIONS`: which versions are allowed.
 - `OPT-IN`: listed as pending in the dashboard; the PR is only opened when ticked.

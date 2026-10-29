@@ -4,13 +4,15 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"maps"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -349,38 +351,23 @@ func stageSharedFiles() error {
 		return err
 	}
 
-	copyLineRegex := regexp.MustCompile(`(?m)^\s*(?:COPY|ADD)\s+(.*)$`)
-	sharedPathRegex := regexp.MustCompile(`\.shared/\S+`)
-
-	staged := map[string]bool{}
-	for _, lineMatch := range copyLineRegex.FindAllStringSubmatch(string(content), -1) {
-		line := lineMatch[1]
-		if strings.Contains(line, "--from=") {
-			continue
+	for _, relPath := range sharedFileReferences(string(content)) {
+		src := filepath.Join("..", "shared", strings.TrimPrefix(relPath, ".shared/"))
+		info, err := os.Stat(src)
+		if err != nil {
+			return fmt.Errorf("failed to stat shared file %s: %w", src, err)
 		}
-		for _, relPath := range sharedPathRegex.FindAllString(line, -1) {
-			if staged[relPath] {
-				continue
-			}
-			staged[relPath] = true
-
-			src := filepath.Join("..", "shared", strings.TrimPrefix(relPath, ".shared/"))
-			info, err := os.Stat(src)
-			if err != nil {
-				return fmt.Errorf("failed to stat shared file %s: %w", src, err)
-			}
-			data, err := os.ReadFile(src)
-			if err != nil {
-				return fmt.Errorf("failed to read shared file %s: %w", src, err)
-			}
-			if err := os.MkdirAll(filepath.Dir(relPath), 0755); err != nil {
-				return fmt.Errorf("failed to create directory for %s: %w", relPath, err)
-			}
-			if err := os.WriteFile(relPath, data, info.Mode()); err != nil {
-				return fmt.Errorf("failed to write staged file %s: %w", relPath, err)
-			}
-			fmt.Printf("Staged shared file: %s -> %s\n", src, relPath)
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return fmt.Errorf("failed to read shared file %s: %w", src, err)
 		}
+		if err := os.MkdirAll(filepath.Dir(relPath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", relPath, err)
+		}
+		if err := os.WriteFile(relPath, data, info.Mode()); err != nil {
+			return fmt.Errorf("failed to write staged file %s: %w", relPath, err)
+		}
+		fmt.Printf("Staged shared file: %s -> %s\n", src, relPath)
 	}
 	return nil
 }
@@ -441,7 +428,7 @@ func packageDocker() {
 }
 
 func getNextVersion() {
-	component, err := deriveComponentName()
+	component, paths, err := currentComponentPaths()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -461,8 +448,8 @@ func getNextVersion() {
 		os.Exit(1)
 	}
 
-	// Determine version bump level from commit scopes
-	bumpType := getVersionBumpFromCommits(component)
+	// Determine version bump level from the commits touching this component
+	bumpType := getVersionBumpFromCommits(paths)
 
 	// Build svu command flags
 	svuCmd := "next"
@@ -479,7 +466,7 @@ func getNextVersion() {
 
 	// Only use --always and --log.directory with 'next' command
 	if svuCmd == "next" {
-		svuArgs = append(svuArgs, "--always", fmt.Sprintf("--log.directory=%s,../shared", component))
+		svuArgs = append(svuArgs, "--always", fmt.Sprintf("--log.directory=%s", strings.Join(relativeToComponent(component, paths), ",")))
 	}
 
 	if rc != "" {
@@ -514,78 +501,47 @@ func getNextVersion() {
 	fmt.Print(strings.TrimSpace(string(output)))
 }
 
-func getVersionBumpFromCommits(component string) string {
-	var commitRange string
+// getVersionBumpFromCommits returns the bump implied by the conventional
+// commits that touched the component's paths. Scopes are not considered.
+func getVersionBumpFromCommits(paths []string) string {
+	commitRange := "origin/main...HEAD"
 	ref := os.Getenv("GITHUB_REF")
 	if ref == "refs/heads/main" || ref == "refs/heads/dev" {
 		commitRange = "HEAD~1...HEAD"
-	} else {
-		commitRange = "origin/main...HEAD"
 	}
 
-	cmd := exec.Command("git", "log", commitRange, "--format=%B%n---COMMIT_DELIMITER---")
-	output, err := cmd.Output()
+	args := []string{"log", commitRange, "--format=%B%n---COMMIT_DELIMITER---", "--"}
+	for _, path := range paths {
+		args = append(args, ":(top)"+path)
+	}
+	output, err := exec.Command("git", args...).Output()
 	if err != nil {
-		cmd = exec.Command("git", "log", "--format=%B%n---COMMIT_DELIMITER---")
-		output, _ = cmd.Output()
+		output, _ = exec.Command("git", "log", "--format=%B%n---COMMIT_DELIMITER---").Output()
 	}
 
-	commitMessages := strings.Split(string(output), "---COMMIT_DELIMITER---")
-	scopeRegex := regexp.MustCompile(`^(feat|fix|chore|docs|style|refactor|perf|test)\(([^)]+)\)(!?):`)
-
-	hasBreakingChange := false
+	headerRegex := regexp.MustCompile(`^(feat|fix|chore|docs|style|refactor|perf|test)(\([^)]*\))?(!?):`)
 	hasFeature := false
-
-	for _, msg := range commitMessages {
+	for _, msg := range strings.Split(string(output), "---COMMIT_DELIMITER---") {
 		msg = strings.TrimSpace(msg)
 		if msg == "" {
 			continue
 		}
-
 		lines := strings.Split(msg, "\n")
-
-		// Check all lines for matching component scope
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			matches := scopeRegex.FindStringSubmatch(line)
-			if len(matches) >= 3 {
-				commitType := matches[1]
-				commitComponent := matches[2]
-
-				if commitComponent != component {
-					continue
-				}
-
-				if len(matches) >= 4 && matches[3] == "!" {
-					hasBreakingChange = true
-				}
-
-				if commitType == "feat" {
-					hasFeature = true
-				}
-
-				if hasBreakingChange {
-					break
-				}
+		if matches := headerRegex.FindStringSubmatch(strings.TrimSpace(lines[0])); matches != nil {
+			if matches[3] == "!" {
+				return "major"
+			}
+			if matches[1] == "feat" {
+				hasFeature = true
 			}
 		}
-
-		if hasBreakingChange {
-			break
-		}
-
-		// Also check for BREAKING CHANGE footer
 		for _, line := range lines {
 			if strings.HasPrefix(strings.TrimSpace(line), "BREAKING CHANGE:") {
-				hasBreakingChange = true
-				break
+				return "major"
 			}
 		}
 	}
 
-	if hasBreakingChange {
-		return "major"
-	}
 	if hasFeature {
 		return "minor"
 	}
@@ -613,8 +569,8 @@ func detectComponents() {
 			components[i] = strings.TrimSpace(c)
 		}
 	} else {
-		// Detect components from commit message scopes
-		components = getComponentsFromCommitScopes(repoRoot)
+		// Detect components from changed files
+		components = getChangedComponents(repoRoot)
 	}
 
 	// Output as JSON array
@@ -654,116 +610,6 @@ func getAllComponents(repoRoot string) []string {
 	return components
 }
 
-func getComponentsFromCommitScopes(repoRoot string) []string {
-	validComponents := getAllComponents(repoRoot)
-	validSet := make(map[string]bool)
-	for _, c := range validComponents {
-		validSet[c] = true
-	}
-
-	seen := make(map[string]bool)
-
-	var commitRange string
-	ref := os.Getenv("GITHUB_REF")
-	if ref == "refs/heads/main" || ref == "refs/heads/dev" {
-		commitRange = "HEAD~1...HEAD"
-	} else {
-		commitRange = "origin/main...HEAD"
-	}
-
-	cmd := exec.Command("git", "log", commitRange, "--format=%B%n---COMMIT_DELIMITER---")
-	output, err := cmd.Output()
-	if err != nil {
-		cmd = exec.Command("git", "log", "--format=%B%n---COMMIT_DELIMITER---")
-		output, _ = cmd.Output()
-	}
-
-	commitMessages := strings.Split(string(output), "---COMMIT_DELIMITER---")
-	scopeRegex := regexp.MustCompile(`^(feat|fix|chore|docs|style|refactor|perf|test)\(([^)]+)\):`)
-
-	for _, msg := range commitMessages {
-		msg = strings.TrimSpace(msg)
-		if msg == "" {
-			continue
-		}
-
-		lines := strings.Split(msg, "\n")
-
-		// Parse all lines for semantic commit scopes
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			matches := scopeRegex.FindStringSubmatch(line)
-			if len(matches) >= 3 {
-				component := matches[2]
-				if component == "all" {
-					return validComponents
-				}
-				if validSet[component] && !seen[component] {
-					seen[component] = true
-				}
-			}
-		}
-	}
-
-	components := slices.Sorted(maps.Keys(seen))
-	return components
-}
-
-func getChangedComponents(repoRoot string) []string {
-	validComponents := getAllComponents(repoRoot)
-	validSet := make(map[string]bool)
-	for _, c := range validComponents {
-		validSet[c] = true
-	}
-
-	// Run git diff to get changed files
-	var cmd *exec.Cmd
-	ref := os.Getenv("GITHUB_REF")
-
-	if ref == "refs/heads/main" || ref == "refs/heads/dev" {
-		cmd = exec.Command("git", "diff", "--name-only", "HEAD~1...HEAD")
-	} else {
-		cmd = exec.Command("git", "diff", "--name-only", "origin/main...HEAD")
-	}
-
-	output, err := cmd.Output()
-	if err != nil {
-		output, _ = exec.Command("git", "ls-tree", "-r", "--name-only", "HEAD").Output()
-	}
-
-	changedFiles := strings.Split(string(output), "\n")
-
-	for _, file := range changedFiles {
-		if strings.HasPrefix(file, "shared/") || file == "shared" {
-			return validComponents
-		}
-	}
-
-	seen := make(map[string]bool)
-
-	for _, file := range changedFiles {
-		if file == "" {
-			continue
-		}
-		parts := strings.Split(file, "/")
-		component := parts[0]
-
-		if component == "shared" {
-			for _, component := range validComponents {
-				seen[component] = true
-			}
-			break
-		}
-
-		if validSet[component] && !seen[component] {
-			seen[component] = true
-		}
-	}
-
-	components := slices.Sorted(maps.Keys(seen))
-	return components
-}
-
 func deriveComponentName() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -773,22 +619,23 @@ func deriveComponentName() (string, error) {
 }
 
 func deriveModulePath() (string, error) {
-	// Try to read go.mod
-	data, err := os.ReadFile("go.mod")
+	return readModulePath("go.mod")
+}
+
+func readModulePath(path string) (string, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("failed to read go.mod: %w", err)
+		return "", fmt.Errorf("failed to read %s: %w", path, err)
 	}
 
-	// Parse module line
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 	for scanner.Scan() {
-		line := scanner.Text()
-		if mod, ok := strings.CutPrefix(line, "module "); ok {
+		if mod, ok := strings.CutPrefix(scanner.Text(), "module "); ok {
 			return mod, nil
 		}
 	}
 
-	return "", fmt.Errorf("module directive not found in go.mod")
+	return "", fmt.Errorf("module directive not found in %s", path)
 }
 
 func quote(s []string) []string {
@@ -949,13 +796,20 @@ func createGithubRelease() {
 		break
 	}
 
-	// Generate changelog — restrict to commits touching this component or shared/
-	var changelogCmd *exec.Cmd
-	if previousTag != "" {
-		changelogCmd = exec.Command("git", "log", fmt.Sprintf("%s...%s", previousTag, currentTag), "--oneline", "--", ".", "../shared")
-	} else {
-		changelogCmd = exec.Command("git", "log", currentTag, "--oneline", "--", ".", "../shared")
+	// Generate changelog — restrict to commits touching this component or the parts of shared/ it uses
+	_, paths, err := currentComponentPaths()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
+	logArgs := []string{"log", currentTag, "--oneline", "--"}
+	if previousTag != "" {
+		logArgs = []string{"log", fmt.Sprintf("%s...%s", previousTag, currentTag), "--oneline", "--"}
+	}
+	for _, path := range paths {
+		logArgs = append(logArgs, ":(top)"+path)
+	}
+	changelogCmd := exec.Command("git", logArgs...)
 
 	changelogOutput, err := changelogCmd.Output()
 	if err != nil {
@@ -1014,4 +868,211 @@ func createGithubRelease() {
 	}
 
 	fmt.Printf("✓ Created GitHub release %s\n", currentTag)
+}
+
+// A component is built, versioned and released from the paths it depends on:
+// its own directory plus only the parts of shared/ that it uses. Everything
+// that asks "did this component change?" (build detection, version bumps,
+// changelogs) goes through componentPaths so they agree.
+
+var (
+	dockerfileCopyRegex = regexp.MustCompile(`(?m)^\s*(?:COPY|ADD)\s+(.*)$`)
+	sharedFileRegex     = regexp.MustCompile(`\.shared/\S+`)
+)
+
+// sharedFileReferences returns the '.shared/<path>' sources a Dockerfile copies
+// from shared/ (see stageSharedFiles).
+func sharedFileReferences(dockerfile string) []string {
+	var refs []string
+	for _, lineMatch := range dockerfileCopyRegex.FindAllStringSubmatch(dockerfile, -1) {
+		line := lineMatch[1]
+		if strings.Contains(line, "--from=") {
+			continue
+		}
+		for _, ref := range sharedFileRegex.FindAllString(line, -1) {
+			if !slices.Contains(refs, ref) {
+				refs = append(refs, ref)
+			}
+		}
+	}
+	return refs
+}
+
+// parseImports returns the import paths of a go source file.
+func parseImports(path string) ([]string, error) {
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+	if err != nil {
+		return nil, err
+	}
+	var imports []string
+	for _, spec := range file.Imports {
+		imp, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			return nil, err
+		}
+		imports = append(imports, imp)
+	}
+	return imports, nil
+}
+
+func isGoSource(name string) bool {
+	return strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")
+}
+
+// componentPaths returns the repo-relative paths a component depends on.
+func componentPaths(repoRoot string, component string) ([]string, error) {
+	sharedModule, err := readModulePath(filepath.Join(repoRoot, "shared", "go.mod"))
+	if err != nil {
+		return nil, err
+	}
+
+	// shared/ package directories the component imports, directly or transitively
+	sharedPkgs := map[string]bool{}
+	var queue []string
+	addImports := func(imports []string) {
+		for _, imp := range imports {
+			var dir string
+			switch {
+			case imp == sharedModule:
+				dir = "shared"
+			case strings.HasPrefix(imp, sharedModule+"/"):
+				dir = "shared/" + strings.TrimPrefix(imp, sharedModule+"/")
+			default:
+				continue
+			}
+			if !sharedPkgs[dir] {
+				sharedPkgs[dir] = true
+				queue = append(queue, dir)
+			}
+		}
+	}
+
+	err = filepath.WalkDir(filepath.Join(repoRoot, component), func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !isGoSource(entry.Name()) {
+			return err
+		}
+		imports, err := parseImports(path)
+		if err != nil {
+			return fmt.Errorf("failed to parse %s: %w", path, err)
+		}
+		addImports(imports)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for len(queue) > 0 {
+		dir := queue[0]
+		queue = queue[1:]
+		entries, err := os.ReadDir(filepath.Join(repoRoot, dir))
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !isGoSource(entry.Name()) {
+				continue
+			}
+			imports, err := parseImports(filepath.Join(repoRoot, dir, entry.Name()))
+			if err != nil {
+				return nil, err
+			}
+			addImports(imports)
+		}
+	}
+
+	paths := []string{component}
+	for dir := range sharedPkgs {
+		paths = append(paths, dir)
+	}
+	if len(sharedPkgs) > 0 {
+		// shared's dependencies
+		paths = append(paths, "shared/go.mod", "shared/go.sum")
+	}
+
+	// shared files copied into the docker build
+	dockerfile, err := os.ReadFile(filepath.Join(repoRoot, component, "Dockerfile"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	for _, ref := range sharedFileReferences(string(dockerfile)) {
+		paths = append(paths, "shared/"+strings.TrimPrefix(ref, ".shared/"))
+	}
+
+	// shared build tooling affects every component
+	paths = append(paths, "shared/Makefile.include.mk")
+
+	slices.Sort(paths)
+	return slices.Compact(paths), nil
+}
+
+func pathContains(path string, file string) bool {
+	return file == path || strings.HasPrefix(file, path+"/")
+}
+
+// componentsForFiles returns the components affected by the changed files.
+func componentsForFiles(repoRoot string, files []string) ([]string, error) {
+	var affected []string
+	for _, component := range getAllComponents(repoRoot) {
+		paths, err := componentPaths(repoRoot, component)
+		if err != nil {
+			return nil, err
+		}
+		changed := slices.ContainsFunc(files, func(file string) bool {
+			return slices.ContainsFunc(paths, func(path string) bool {
+				return pathContains(path, file)
+			})
+		})
+		if changed {
+			affected = append(affected, component)
+		}
+	}
+	return affected, nil
+}
+
+func getChangedComponents(repoRoot string) []string {
+	ref := os.Getenv("GITHUB_REF")
+	diffRange := "origin/main...HEAD"
+	if ref == "refs/heads/main" || ref == "refs/heads/dev" {
+		diffRange = "HEAD~1...HEAD"
+	}
+
+	output, err := exec.Command("git", "diff", "--name-only", diffRange).Output()
+	if err != nil {
+		output, _ = exec.Command("git", "ls-tree", "-r", "--name-only", "HEAD").Output()
+	}
+
+	components, err := componentsForFiles(repoRoot, strings.Fields(string(output)))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error detecting components: %v\n", err)
+		os.Exit(1)
+	}
+	return components
+}
+
+// currentComponentPaths returns the paths for the component in the current directory.
+func currentComponentPaths() (string, []string, error) {
+	component, err := deriveComponentName()
+	if err != nil {
+		return "", nil, err
+	}
+	paths, err := componentPaths("..", component)
+	if err != nil {
+		return "", nil, err
+	}
+	return component, paths, nil
+}
+
+// relativeToComponent converts repo-relative paths to paths relative to the
+// component directory (the current directory).
+func relativeToComponent(component string, paths []string) []string {
+	relative := make([]string, len(paths))
+	for i, path := range paths {
+		if path == component {
+			relative[i] = "."
+		} else {
+			relative[i] = "../" + path
+		}
+	}
+	return relative
 }

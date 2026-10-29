@@ -6,9 +6,6 @@
   "ignoreUnstable": true,
   "minimumReleaseAge": "3 days",
   "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
-  "semanticCommitType": "fix",
-  "semanticCommitScope": "{{parentDir}}",
-  "additionalBranchPrefix": "{{parentDir}}-",
   "customManagers": [
     {
       "customType": "regex",
@@ -17,7 +14,8 @@
         "/(^|/)Dockerfile$/",
         "/(^|/)Makefile$/",
         "/\\.sh$/",
-        "/\\.go$/"
+        "/\\.go$/",
+        "/(^|/)devcontainer\\.json$/"
       ],
       "matchStrings": [
         "(?:#|//) renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\n[^\\n]*?[=:]\\s*\"?(?<currentValue>[^\"\\s]+)\"?",
@@ -44,32 +42,13 @@
   ],
   "packageRules": [
     {
-      "description": "RELEASES: repo tooling doesn't ship in an image, so its updates never trigger a release.",
-      "matchFileNames": [
-        ".github/**",
-        ".devcontainer/**",
-        "Makefile",
-        "docs/**",
-        "scripts/**"
-      ],
-      "semanticCommitType": "chore",
-      "semanticCommitScope": "deps"
-    },
-    {
-      "description": "RELEASES: every component imports shared/, so its updates rebuild all of them (scope 'all').",
-      "matchFileNames": ["shared/**"],
-      "semanticCommitScope": "all"
-    },
-
-    {
       "description": "GROUPING: all workflow action updates arrive as one PR.",
       "matchManagers": ["github-actions"],
       "groupName": "github actions"
     },
     {
-      "description": "GROUPING: the go version in the devcontainer and workflows moves together. (go.mod 'go' directives are per-component and not grouped.)",
+      "description": "GROUPING: the go version in the devcontainer, workflows and go.mod files moves together.",
       "matchDepNames": ["go"],
-      "matchFileNames": [".github/**", ".devcontainer/**"],
       "groupName": "go toolchain"
     },
     {
@@ -78,12 +57,11 @@
       "groupName": "node"
     },
     {
-      "description": "GROUPING: k8s client libraries and controller-runtime must move together (one PR per component).",
+      "description": "GROUPING: k8s client libraries and controller-runtime must move together.",
       "matchManagers": ["gomod"],
       "matchPackageNames": ["k8s.io/{/,}**", "sigs.k8s.io/controller-runtime"],
       "groupName": "kubernetes libraries"
     },
-
     {
       "description": "VERSIONS: only even (LTS) node majors.",
       "matchDepNames": ["node"],
@@ -95,7 +73,6 @@
       "matchFileNames": ["frigate/Dockerfile"],
       "allowedVersions": "<3.12"
     },
-
     {
       "description": "OPT-IN: update is listed as pending in the dashboard, and the PR is only opened when you tick it. onnx output must load in frigate's bundled onnxruntime; the yolov9 and blueprint repos only offer commits, not releases.",
       "matchDepNames": [
@@ -111,7 +88,6 @@
       "versioning": "loose",
       "allowedVersions": "/^$/"
     },
-
     {
       "description": "PR NOTE: local patches are rebased against a specific home-assistant release.",
       "matchDepNames": ["ghcr.io/home-assistant/home-assistant"],

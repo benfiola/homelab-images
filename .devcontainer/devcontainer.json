@@ -20,9 +20,11 @@
       "moby": true
     },
     "ghcr.io/devcontainers/features/go:1": {
+      // renovate: datasource=golang-version depName=go
       "version": "1.27.3"
     },
     "ghcr.io/devcontainers/features/node:1": {
+      // renovate: datasource=node-version depName=node
       "version": "24.22.1"
     }
   },
