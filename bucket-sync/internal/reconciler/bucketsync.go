@@ -26,7 +26,7 @@ import (
 var syncScript string
 
 // renovate: datasource=docker depName=rclone/rclone
-const rcloneVersion = "1.73.1"
+const rcloneVersion = "1.75.2"
 
 const (
 	IntervalWaitForLock    = 15 * time.Second
