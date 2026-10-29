@@ -1,0 +1,140 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits", "docker:pinDigests"],
+  "dependencyDashboard": true,
+  "dependencyDashboardHeader": "This issue lists Renovate updates and detected dependencies. Read the [Dependency Dashboard](https://docs.renovatebot.com/key-concepts/dashboard/) docs to learn more.\n\nEntries under **Detected dependencies** marked `(pinned: ...)` are deliberately held back for this environment and are never updated.",
+  "ignoreUnstable": true,
+  "minimumReleaseAge": "3 days",
+  "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
+  "semanticCommitType": "fix",
+  "semanticCommitScope": "{{parentDir}}",
+  "additionalBranchPrefix": "{{parentDir}}-",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Tracked: a '# renovate:' comment on the line above a version (datasource + depName) or above a commit sha (git-refs + branch).",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/",
+        "/(^|/)Makefile$/",
+        "/\\.sh$/",
+        "/\\.go$/"
+      ],
+      "matchStrings": [
+        "(?:#|//) renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\n[^\\n]*?[=:]\\s*\"?(?<currentValue>[^\"\\s]+)\"?",
+        "(?:#|//) renovate: datasource=(?<datasource>git-refs) depName=(?<depName>\\S+) branch=(?<currentValue>\\S+)\\n[^\\n]*?[=:]\\s*\"?(?<currentDigest>[a-f0-9]{40})\"?"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Pinned: a '# renovate-pinned:' comment. Listed in the dashboard's detected dependencies, never updated.",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/",
+        "/(^|/)Makefile$/",
+        "/\\.sh$/",
+        "/\\.go$/"
+      ],
+      "matchStrings": [
+        "(?:#|//) renovate-pinned: depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+) reason=(?<reason>[^\\n]+)"
+      ],
+      "depNameTemplate": "{{{depName}}} (pinned: {{{reason}}})",
+      "depTypeTemplate": "pinned",
+      "datasourceTemplate": "git-refs",
+      "packageNameTemplate": "https://github.com/benfiola/homelab-images"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "RELEASES: repo tooling doesn't ship in an image, so its updates never trigger a release.",
+      "matchFileNames": [
+        ".github/**",
+        ".devcontainer/**",
+        "Makefile",
+        "docs/**",
+        "scripts/**"
+      ],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "RELEASES: every component imports shared/, so its updates rebuild all of them (scope 'all').",
+      "matchFileNames": ["shared/**"],
+      "semanticCommitScope": "all"
+    },
+
+    {
+      "description": "GROUPING: all workflow action updates arrive as one PR.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "GROUPING: the go version in the devcontainer and workflows moves together. (go.mod 'go' directives are per-component and not grouped.)",
+      "matchDepNames": ["go"],
+      "matchFileNames": [".github/**", ".devcontainer/**"],
+      "groupName": "go toolchain"
+    },
+    {
+      "description": "GROUPING: the node version in the devcontainer and workflows moves together.",
+      "matchDepNames": ["node"],
+      "groupName": "node"
+    },
+    {
+      "description": "GROUPING: k8s client libraries and controller-runtime must move together (one PR per component).",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["k8s.io/{/,}**", "sigs.k8s.io/controller-runtime"],
+      "groupName": "kubernetes libraries"
+    },
+
+    {
+      "description": "VERSIONS: only even (LTS) node majors.",
+      "matchDepNames": ["node"],
+      "allowedVersions": "/^\\d*[02468]\\./"
+    },
+    {
+      "description": "VERSIONS: the yolov9 export stage stays on python 3.11 (torch/onnx tooling compatibility).",
+      "matchDepNames": ["python"],
+      "matchFileNames": ["frigate/Dockerfile"],
+      "allowedVersions": "<3.12"
+    },
+
+    {
+      "description": "OPT-IN: update is listed as pending in the dashboard, and the PR is only opened when you tick it. onnx output must load in frigate's bundled onnxruntime; the yolov9 and blueprint repos only offer commits, not releases.",
+      "matchDepNames": [
+        "onnx",
+        "https://github.com/WongKinYiu/yolov9",
+        "https://github.com/SgtBatten/HA_blueprints"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "PINNED: shown in the dashboard, never updated. (The datasource above only exists so the entry isn't skipped.)",
+      "matchDepTypes": ["pinned"],
+      "versioning": "loose",
+      "allowedVersions": "/^$/"
+    },
+
+    {
+      "description": "PR NOTE: local patches are rebased against a specific home-assistant release.",
+      "matchDepNames": ["ghcr.io/home-assistant/home-assistant"],
+      "prBodyNotes": [
+        "⚠️ `home-assistant/patches/` is rebased against a specific release. Confirm `patch-esphome-url-type.sh` still applies and the image builds."
+      ]
+    },
+    {
+      "description": "PR NOTE: local patches are rebased against a specific music-assistant release.",
+      "matchDepNames": ["ghcr.io/music-assistant/server"],
+      "prBodyNotes": [
+        "⚠️ `music-assistant/base-url-override.patch` is rebased against a specific release. Confirm it still applies and the image builds."
+      ]
+    },
+    {
+      "description": "PR NOTE: frigate, its home-assistant integration and the onnx model are coupled.",
+      "matchDepNames": [
+        "ghcr.io/blakeblackshear/frigate",
+        "blakeblackshear/frigate-hass-integration"
+      ],
+      "prBodyNotes": [
+        "⚠️ Frigate and `frigate-hass-integration` have compatibility requirements with each other, and the yolov9 `.onnx` must load in Frigate's bundled onnxruntime."
+      ]
+    }
+  ]
+}

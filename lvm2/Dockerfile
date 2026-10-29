@@ -1,4 +1,5 @@
-ARG LVM2_VERSION=2.03.43
+# renovate: datasource=github-tags depName=lvmteam/lvm2 versioning=regex:^(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$ extractVersion=^v(?<version>\d+_\d+_\d+)$
+ARG LVM2_VERSION=2_03_43
 
 FROM debian:trixie-slim AS builder
 

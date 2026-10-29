@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 
+# renovate: datasource=github-releases depName=valentinfrlch/ha-llmvision extractVersion=^v(?<version>.+)$
 VERSION="1.7.2"
 DEST="${ADDONS_DIR}/custom_components/llmvision"
 BLUEPRINT_DEST="${ADDONS_DIR}/blueprints/automation"

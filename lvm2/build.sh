@@ -4,7 +4,8 @@
 # Requires the following (debian) packages: curl build-essential pkg-config libaio-dev libdevmapper-dev libudev-dev tar xfslibs-dev
 set -e
 
-VERSION="${1}"
+# accepts dotted (2.03.43) or tag-style (2_03_43) versions
+VERSION="$(echo "${1}" | tr _ .)"
 OUTPUT_ARCHIVE="${2}"
 
 if [ -z "${VERSION}" ] || [ -z "${OUTPUT_ARCHIVE}" ]; then

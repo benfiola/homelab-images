@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 
+# renovate: datasource=github-releases depName=lovelylain/hass_ingress
 VERSION="1.4.0"
 DEST="${ADDONS_DIR}/custom_components/ingress"
 

@@ -25,6 +25,9 @@ import (
 //go:embed sync.sh
 var syncScript string
 
+// renovate: datasource=docker depName=rclone/rclone
+const rcloneVersion = "1.73.1"
+
 const (
 	IntervalWaitForLock    = 15 * time.Second
 	IntervalWaitForRestore = 15 * time.Second
@@ -173,7 +176,7 @@ func (r *BucketSyncReconciler) buildJob(sync *api.BucketSync) *batchv1.Job {
 					Containers: []corev1.Container{
 						{
 							Name:    "sync",
-							Image:   "rclone/rclone:1.73.1",
+							Image:   "rclone/rclone:" + rcloneVersion,
 							Command: []string{"/bin/sh", "-c", syncScript},
 							Env:     env,
 							SecurityContext: &corev1.SecurityContext{

@@ -1,5 +1,6 @@
 FROM debian:trixie-slim
 
+# renovate: datasource=github-tags depName=bitwarden/sdk-sm extractVersion=^bws-v(?<version>.+)$
 ARG BWS_VERSION="2.1.0"
 ARG TARGETARCH
 

@@ -11,6 +11,7 @@ update-ca-certificates
 
 add-apt-repository contrib
 
+# renovate-pinned: depName=cuda currentValue=12.4 reason=matches the host GPU driver
 wget -qO /tmp/cuda-keyring.deb https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb
 dpkg -i /tmp/cuda-keyring.deb
 rm /tmp/cuda-keyring.deb

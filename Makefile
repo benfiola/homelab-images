@@ -1,5 +1,8 @@
+# renovate: datasource=github-releases depName=kubernetes-sigs/controller-tools extractVersion=^v(?<version>.+)$
 CONTROLLER_GEN_VERSION ?= 0.23.0
+# renovate: datasource=github-releases depName=helm/helm extractVersion=^v(?<version>.+)$
 HELM_VERSION ?= 4.3.1
+# renovate: datasource=github-releases depName=cli/cli extractVersion=^v(?<version>.+)$
 GH_VERSION ?= 2.103.3
 
 BIN ?= ./.bin
@@ -35,6 +38,7 @@ list-targets:
 install-tools:
 	@echo "All tools installed to $(bin)"
 
+# renovate-pinned: depName=svu currentValue=297 reason=personal fork branch issue/297, waiting on an upstream fix
 .PHONY: install-svu
 install-tools: install-svu
 install-svu:

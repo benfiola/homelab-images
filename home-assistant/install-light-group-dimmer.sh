@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 
+# renovate: datasource=github-releases depName=xHecktor/light_group_dimmer extractVersion=^v(?<version>.+)$
 VERSION="1.1.2"
 DEST="${ADDONS_DIR}/custom_components/light_group_dimmer"
 

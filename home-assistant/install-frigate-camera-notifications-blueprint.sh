@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 
+# renovate: datasource=git-refs depName=https://github.com/SgtBatten/HA_blueprints branch=main
 VERSION="f003ea11ba96e262199ea130fe8f749605645a52"
 DEST="${ADDONS_DIR}/blueprints/automation"
 

@@ -1,6 +1,6 @@
 ARG HA_VERSION=2026.10.4
 
-FROM alpine AS addons
+FROM alpine:3 AS addons
 
 COPY install-*.sh /
 

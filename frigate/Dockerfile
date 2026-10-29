@@ -6,6 +6,10 @@ FROM python:3.11 AS model-prep
 
 ARG MODEL_SIZE
 ARG IMG_SIZE
+# renovate: datasource=pypi depName=onnx
+ARG ONNX_VERSION=1.23.2
+# renovate: datasource=git-refs depName=https://github.com/WongKinYiu/yolov9 branch=main
+ARG YOLOV9_COMMIT=5b1ea9a8b3f0ffe4fe0e203ec6232d788bb3fcff
 
 RUN <<'EOF'
 set -e
@@ -21,8 +25,9 @@ set -e
 mkdir -p /models /yolo
 cd /yolo
 git clone https://github.com/WongKinYiu/yolov9.git .
+git checkout ${YOLOV9_COMMIT}
 curl -fsSL -o yolov9-${MODEL_SIZE}-converted.pt https://github.com/WongKinYiu/yolov9/releases/download/v0.1/yolov9-${MODEL_SIZE}-converted.pt
-/bin/uv pip install --system -r requirements.txt onnx==1.23.2 onnxruntime onnxsim onnxscript
+/bin/uv pip install --system -r requirements.txt onnx==${ONNX_VERSION} onnxruntime onnxsim onnxscript
 sed -i "s/ckpt = torch.load(attempt_download(w), map_location='cpu')/ckpt = torch.load(attempt_download(w), map_location='cpu', weights_only=False)/g" models/experimental.py
 python3 export.py --weights ./yolov9-${MODEL_SIZE}-converted.pt --imgsz ${IMG_SIZE} --simplify --include onnx
 mv yolov9-${MODEL_SIZE}*.onnx /models/yolov9-${MODEL_SIZE}-${IMG_SIZE}.onnx

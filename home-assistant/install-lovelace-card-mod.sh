@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 
+# renovate: datasource=github-releases depName=thomasloven/lovelace-card-mod extractVersion=^v(?<version>.+)$
 VERSION="4.2.1"
 DEST="${ADDONS_DIR}/www/lovelace-card-mod"
 
