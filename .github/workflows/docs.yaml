@@ -14,6 +14,7 @@ jobs:
       - name: setup node
         uses: actions/setup-node@v7
         with:
+          # renovate: datasource=node-version depName=node
           node-version: "24.22.1"
       - name: install tools
         run: BIN=/usr/local/bin make install-tools

@@ -15,7 +15,8 @@
         "/(^|/)Makefile$/",
         "/\\.sh$/",
         "/\\.go$/",
-        "/(^|/)devcontainer\\.json$/"
+        "/(^|/)devcontainer\\.json$/",
+        "/^\\.github\\/workflows\\/.+\\.ya?ml$/"
       ],
       "matchStrings": [
         "(?:#|//) renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\n[^\\n]*?[=:]\\s*\"?(?<currentValue>[^\"\\s]+)\"?",
@@ -45,6 +46,18 @@
       "description": "GROUPING: all workflow action updates arrive as one PR.",
       "matchManagers": ["github-actions"],
       "groupName": "github actions"
+    },
+    {
+      "description": "VERSIONS: go and node are tracked via '# renovate:' annotations everywhere, so the workflows, devcontainer and go.mod agree on one source (and node on LTS). Turn off the built-in actions tracking of them.",
+      "matchManagers": ["github-actions"],
+      "enabled": false,
+      "matchPackageNames": ["actions/node-versions", "actions/go-versions"]
+    },
+    {
+      "description": "VERSIONS: package.json 'engines' is a compatibility floor, not a pin.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["engines"],
+      "enabled": false
     },
     {
       "description": "GROUPING: the go version in the devcontainer, workflows and go.mod files moves together.",

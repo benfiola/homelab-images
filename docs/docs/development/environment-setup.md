@@ -10,7 +10,7 @@ This guide provides instructions for setting up a development environment and co
 Before getting started, ensure you have:
 
 - **Go** (1.21 or later recommended)
-- **Node.js** (22.21.0 recommended, for documentation development)
+- **Node.js** (the version in `.devcontainer/devcontainer.json`, for documentation development)
 - **Git** for version control
 - **Make** for development automation
 - **Docker** (optional, if using devcontainers)
