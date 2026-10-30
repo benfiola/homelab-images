@@ -3,14 +3,20 @@ package main
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
 // publish pushes the component's container image and helm chart (see build).
 func publish(component, version string) error {
 	v, _ := parseSemver(version)
 
-	err := stream(nil, "docker", "buildx", "build",
-		"--platform", platforms,
+	platforms, err := componentPlatforms(component)
+	if err != nil {
+		return err
+	}
+
+	err = stream(nil, "docker", "buildx", "build",
+		"--platform", strings.Join(platforms, ","),
 		"--push",
 		"--tag", fmt.Sprintf("%s/%s:%s", imageBase, component, v.imageTag()),
 		component,

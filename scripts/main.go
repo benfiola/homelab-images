@@ -14,7 +14,8 @@ const (
 	repoURL    = "https://github.com/benfiola/homelab-images"
 	modulePath = "github.com/benfiola/homelab-images"
 	imageBase  = "ghcr.io/benfiola/homelab-images"
-	platforms  = "linux/amd64,linux/arm64"
+	// defaultPlatforms can be overridden per component (see componentPlatforms)
+	defaultPlatforms = "linux/amd64"
 )
 
 const usage = `usage: go run ./scripts <command>

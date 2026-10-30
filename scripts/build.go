@@ -19,6 +19,11 @@ func build(component, version string) error {
 		return err
 	}
 
+	platforms, err := componentPlatforms(component)
+	if err != nil {
+		return err
+	}
+
 	if hasKubebuilderMarkers(component) {
 		if err := generateController(component); err != nil {
 			return err
@@ -26,7 +31,7 @@ func build(component, version string) error {
 	}
 
 	if exists(component, "cmd", "main.go") {
-		for _, platform := range strings.Split(platforms, ",") {
+		for _, platform := range platforms {
 			goos, goarch, _ := strings.Cut(platform, "/")
 			err := stream(
 				[]string{"CGO_ENABLED=0", "GOOS=" + goos, "GOARCH=" + goarch},

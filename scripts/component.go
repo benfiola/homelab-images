@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -134,4 +135,21 @@ func (d *dependencies) modulesChanged(base string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+var platformsRegex = regexp.MustCompile(`(?m)^#\s*platforms:\s*(\S+)\s*$`)
+
+// componentPlatforms returns the platforms a component is built for: the
+// comma-separated list from a '# platforms: linux/amd64,linux/arm64' line in
+// its Dockerfile, or defaultPlatforms.
+func componentPlatforms(component string) ([]string, error) {
+	dockerfile, err := os.ReadFile(filepath.Join(component, "Dockerfile"))
+	if err != nil {
+		return nil, err
+	}
+	value := defaultPlatforms
+	if match := platformsRegex.FindSubmatch(dockerfile); match != nil {
+		value = string(match[1])
+	}
+	return strings.Split(value, ","), nil
 }

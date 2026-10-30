@@ -54,6 +54,8 @@ Every component is versioned independently with `<component>/v<semver>` git tags
 
 So a change to `shared/pkg/lvm` releases only the components importing it. Other branches publish prereleases (`-alpha.<run>+<branch>`, or `-rc.<run>` from `dev`). The workflow can also be run manually to release specific components or all of them.
 
+Components build for `linux/amd64` by default. A component that supports more adds a `# platforms: linux/amd64,linux/arm64` line to its Dockerfile, which controls both the Go binaries and the image.
+
 ## Dependency updates
 
 [Renovate](https://docs.renovatebot.com) opens PRs for updates, configured in `renovate.json`. Its Dependency Dashboard issue lists pending updates and everything detected. Go modules, `flake.lock`, GitHub Actions, devcontainers and Dockerfile `FROM` lines are tracked automatically. Anything else is tracked with a comment on the line above the version (`//` in Go):
