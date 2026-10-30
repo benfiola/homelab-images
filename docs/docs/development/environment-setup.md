@@ -9,42 +9,36 @@ This guide provides instructions for setting up a development environment and co
 
 Before getting started, ensure you have:
 
-- **Go** (1.21 or later recommended)
-- **Node.js** (the version in `.devcontainer/devcontainer.json`, for documentation development)
+- [Nix](https://nixos.org/download) with flakes enabled (provides Go, Node.js, Helm and the other tooling), or Docker if using devcontainers
 - **Git** for version control
-- **Make** for development automation
-- **Docker** (optional, if using devcontainers)
 - A code editor (VSCode recommended)
 
 ## Quick Start
 
 ### Option 1: Using Devcontainers (Recommended)
 
-The project includes a devcontainer configuration that sets up a complete development environment.
+The project includes a devcontainer that installs Nix and loads the flake's dev shell in every terminal.
 
 1. **Open the project in VSCode** with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 2. **Reopen in Container**: Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) and select "Dev Containers: Reopen in Container"
-3. **Wait for setup**: The devcontainer will automatically run the setup scripts which installs dependencies and tooling
+3. **Wait for setup**: The first start downloads the Nix dependencies; they are cached in a volume afterwards
 
 ### Option 2: Local Development Setup
 
 If you prefer local development without devcontainers:
 
-1. **Install Go**, **Node.js**, and **Make**
-
-2. **Install tooling** (required for build operations):
-
-:::tip Non-standard PATH
-By default, this Makefile target installs to the local `.bin` folder. This directory will need to be added to your system `PATH`.
-
-Alternatively, use `BIN=/usr/local/bin make install-tools` to install tools to a system location.
-:::
+1. **Enter the dev shell** from the repository root:
 
 ```bash
-make install-tools
+nix develop
 ```
 
-This also installs documentation dependencies via `install-doc-dependencies`.
+2. **Install svu** (installed from a fork, so it isn't part of the flake):
+
+```bash
+make install-svu
+export PATH="$PATH:$PWD/.bin"
+```
 
 ## Documentation Development
 
