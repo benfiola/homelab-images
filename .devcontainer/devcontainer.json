@@ -25,7 +25,7 @@
     },
     "ghcr.io/devcontainers/features/node:1": {
       // renovate: datasource=node-version depName=node
-      "version": "24.22.1"
+      "version": "24.22.2"
     }
   },
   "image": "debian:trixie-slim",
