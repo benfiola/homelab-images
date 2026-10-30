@@ -25,7 +25,7 @@
     },
     {
       "customType": "regex",
-      "description": "Pinned: a '# renovate-pinned:' comment. Listed in the dashboard's detected dependencies, never updated.",
+      "description": "Pinned: a '# renovate-pinned:' comment on the line above a value. Listed in the dashboard's detected dependencies, never updated.",
       "managerFilePatterns": [
         "/(^|/)Dockerfile$/",
         "/(^|/)Makefile$/",
@@ -33,7 +33,7 @@
         "/\\.go$/"
       ],
       "matchStrings": [
-        "(?:#|//) renovate-pinned: depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+) reason=(?<reason>[^\\n]+)"
+        "(?:#|//) renovate-pinned: depName=(?<depName>\\S+) reason=(?<reason>[^\\n]+)\\n[^\\n]*?(?:==|[=:])\\s*\"?(?<currentValue>[^\"\\s]+)\"?"
       ],
       "depNameTemplate": "{{{depName}}} (pinned: {{{reason}}})",
       "depTypeTemplate": "pinned",
@@ -84,7 +84,7 @@
     {
       "description": "VERSIONS: only even (LTS) node majors.",
       "matchDepNames": ["node"],
-      "allowedVersions": "/^\\d*[02468]\\./"
+      "allowedVersions": "/^v?\\d*[02468]\\./"
     },
     {
       "description": "VERSIONS: the yolov9 export stage stays on python 3.11 (torch/onnx tooling compatibility).",
@@ -104,7 +104,7 @@
     {
       "description": "PINNED: shown in the dashboard, never updated. (The datasource above only exists so the entry isn't skipped.)",
       "matchDepTypes": ["pinned"],
-      "versioning": "loose",
+      "versioning": "semver-coerced",
       "allowedVersions": "/^$/"
     },
     {

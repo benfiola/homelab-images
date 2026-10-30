@@ -21,7 +21,8 @@ HELM_VERSION ?= 4.3.1
 Versions held back for this environment are marked so they stay visible in the dashboard without being updated:
 
 ```sh
-# renovate-pinned: depName=cuda currentValue=12.4 reason=matches the host GPU driver
+# renovate-pinned: depName=cuda reason=matches the host GPU driver
+CUDA_VERSION="12.4"
 ```
 
 ## Releases

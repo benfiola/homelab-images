@@ -4,6 +4,8 @@ CONTROLLER_GEN_VERSION ?= 0.23.0
 HELM_VERSION ?= 4.3.1
 # renovate: datasource=github-releases depName=cli/cli extractVersion=^v(?<version>.+)$
 GH_VERSION ?= 2.103.3
+# renovate-pinned: depName=svu reason=personal fork branch, waiting on an upstream fix
+SVU_FORK_BRANCH ?= issue/297
 
 BIN ?= ./.bin
 bin := $(abspath $(BIN))
@@ -38,15 +40,14 @@ list-targets:
 install-tools:
 	@echo "All tools installed to $(bin)"
 
-# renovate-pinned: depName=svu currentValue=297 reason=personal fork branch issue/297, waiting on an upstream fix
 .PHONY: install-svu
 install-tools: install-svu
 install-svu:
 	@mkdir -p $(bin)
-	@echo "Installing svu from fork (issue/297 branch)..."
+	@echo "Installing svu from fork ($(SVU_FORK_BRANCH) branch)..."
 	@cd /tmp && \
 	rm -rf svu && \
-	git clone --depth 1 --branch issue/297 https://github.com/benfiola/svu.git && \
+	git clone --depth 1 --branch $(SVU_FORK_BRANCH) https://github.com/benfiola/svu.git && \
 	cd svu && \
 	go build -o $(bin)/svu . && \
 	cd /tmp && \
