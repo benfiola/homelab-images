@@ -20,29 +20,29 @@ import (
 )
 
 type Opts struct {
-	Continuous            *bool
-	BitwardenAccessToken  string
-	BitwardenSecretID     string
-	Interval              time.Duration
-	VaultAddr             string
-	VaultAuthMount        string
-	VaultAuthRole         string
-	VaultAuthToken        string
-	VaultSecretsMount     string
+	Continuous           *bool
+	BitwardenAccessToken string
+	BitwardenSecretID    string
+	Interval             time.Duration
+	VaultAddr            string
+	VaultAuthMount       string
+	VaultAuthRole        string
+	VaultAuthToken       string
+	VaultSecretsMount    string
 }
 
 type Pusher struct {
-	Continuous            bool
-	Interval              time.Duration
-	LastChecksum          string
-	BitwardenAccessToken  string
-	BitwardenSecretID     string
-	Vault                 *vault.Client
-	VaultAddr             string
-	VaultAuthMount        string
-	VaultAuthRole         string
-	VaultAuthToken        string
-	VaultSecretsMount     string
+	Continuous           bool
+	Interval             time.Duration
+	LastChecksum         string
+	BitwardenAccessToken string
+	BitwardenSecretID    string
+	Vault                *vault.Client
+	VaultAddr            string
+	VaultAuthMount       string
+	VaultAuthRole        string
+	VaultAuthToken       string
+	VaultSecretsMount    string
 }
 
 type VaultRole struct {
@@ -106,20 +106,19 @@ func New(opts *Opts) (*Pusher, error) {
 	}
 
 	pusher := Pusher{
-		Continuous:            continuous,
-		Interval:              interval,
-		BitwardenAccessToken:  opts.BitwardenAccessToken,
-		BitwardenSecretID:     opts.BitwardenSecretID,
-		Vault:                 vaultClient,
-		VaultAddr:             opts.VaultAddr,
-		VaultAuthRole:         opts.VaultAuthRole,
-		VaultAuthMount:        opts.VaultAuthMount,
-		VaultAuthToken:        opts.VaultAuthToken,
-		VaultSecretsMount:     opts.VaultSecretsMount,
+		Continuous:           continuous,
+		Interval:             interval,
+		BitwardenAccessToken: opts.BitwardenAccessToken,
+		BitwardenSecretID:    opts.BitwardenSecretID,
+		Vault:                vaultClient,
+		VaultAddr:            opts.VaultAddr,
+		VaultAuthRole:        opts.VaultAuthRole,
+		VaultAuthMount:       opts.VaultAuthMount,
+		VaultAuthToken:       opts.VaultAuthToken,
+		VaultSecretsMount:    opts.VaultSecretsMount,
 	}
 	return &pusher, nil
 }
-
 
 func (p *Pusher) toStringSlice(v any) ([]string, error) {
 	anyValues, ok := v.([]any)

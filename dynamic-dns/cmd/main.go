@@ -41,7 +41,7 @@ func main() {
 						return fmt.Errorf("failed to parse cloudflare zones: %w", err)
 					}
 				}
-				
+
 				client, err := internal.New(&internal.Opts{
 					CloudflareAPIToken: c.String("cloudflare-api-token"),
 					CloudflareZones:    cloudflareZones,
@@ -51,7 +51,7 @@ func main() {
 				if err != nil {
 					return err
 				}
-	
+
 				return client.Run(ctx)
 			},
 		}),

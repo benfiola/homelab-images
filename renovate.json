@@ -12,11 +12,11 @@
       "description": "Tracked: a '# renovate:' comment on the line above a version (datasource + depName) or above a commit sha (git-refs + branch).",
       "managerFilePatterns": [
         "/(^|/)Dockerfile$/",
-        "/(^|/)Makefile$/",
         "/\\.sh$/",
         "/\\.go$/",
         "/(^|/)devcontainer\\.json$/",
-        "/^\\.github\\/workflows\\/.+\\.ya?ml$/"
+        "/^\\.github\\/workflows\\/.+\\.ya?ml$/",
+        "/(^|/)flake\\.nix$/"
       ],
       "matchStrings": [
         "(?:#|//) renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\n[^\\n]*?[=:]\\s*\"?(?<currentValue>[^\"\\s]+)\"?",
@@ -26,12 +26,7 @@
     {
       "customType": "regex",
       "description": "Pinned: a '# renovate-pinned:' comment on the line above a value. Listed in the dashboard's detected dependencies, never updated.",
-      "managerFilePatterns": [
-        "/(^|/)Dockerfile$/",
-        "/(^|/)Makefile$/",
-        "/\\.sh$/",
-        "/\\.go$/"
-      ],
+      "managerFilePatterns": ["/(^|/)Dockerfile$/", "/\\.sh$/", "/\\.go$/"],
       "matchStrings": [
         "(?:#|//) renovate-pinned: depName=(?<depName>\\S+) reason=(?<reason>[^\\n]+)\\n[^\\n]*?(?:==|[=:])\\s*\"?(?<currentValue>[^\"\\s]+)\"?"
       ],
@@ -48,28 +43,6 @@
       "groupName": "github actions"
     },
     {
-      "description": "VERSIONS: go and node are tracked via '# renovate:' annotations everywhere, so the workflows, devcontainer and go.mod agree on one source (and node on LTS). Turn off the built-in actions tracking of them.",
-      "matchManagers": ["github-actions"],
-      "enabled": false,
-      "matchPackageNames": ["actions/node-versions", "actions/go-versions"]
-    },
-    {
-      "description": "VERSIONS: package.json 'engines' is a compatibility floor, not a pin.",
-      "matchManagers": ["npm"],
-      "matchDepTypes": ["engines"],
-      "enabled": false
-    },
-    {
-      "description": "GROUPING: the go version in the devcontainer, workflows and go.mod files moves together.",
-      "matchDepNames": ["go"],
-      "groupName": "go toolchain"
-    },
-    {
-      "description": "GROUPING: the node version in the devcontainer and workflows moves together.",
-      "matchDepNames": ["node"],
-      "groupName": "node"
-    },
-    {
       "description": "GROUPING: k8s client libraries and controller-runtime must move together.",
       "matchManagers": ["gomod"],
       "matchPackageNames": ["k8s.io/{/,}**", "sigs.k8s.io/controller-runtime"],
@@ -80,11 +53,6 @@
       "matchManagers": ["custom.regex"],
       "matchDatasources": ["docker"],
       "pinDigests": false
-    },
-    {
-      "description": "VERSIONS: only even (LTS) node majors.",
-      "matchDepNames": ["node"],
-      "allowedVersions": "/^v?\\d*[02468]\\./"
     },
     {
       "description": "VERSIONS: the yolov9 export stage stays on python 3.11 (torch/onnx tooling compatibility).",
@@ -131,5 +99,9 @@
         "⚠️ Frigate and `frigate-hass-integration` have compatibility requirements with each other, and the yolov9 `.onnx` must load in Frigate's bundled onnxruntime."
       ]
     }
-  ]
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  }
 }

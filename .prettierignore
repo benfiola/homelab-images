@@ -1,0 +1,4 @@
+**/chart/templates
+**/chart/generated
+flake.lock
+go.sum
