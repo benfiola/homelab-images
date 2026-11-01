@@ -15,7 +15,7 @@ EOF
 COPY --from=lvm2 /lvm2.tar.gz /tmp/lvm2.tar.gz
 RUN <<EOF
 tar xvzf /tmp/lvm2.tar.gz -C /
-ln -fs /sbin/lvm /usr/sbin/lvm.static
+ln -fs /usr/sbin/lvm.static /sbin/lvm
 rm -rf /tmp/lvm2.tar.gz
 EOF
 
