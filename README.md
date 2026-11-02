@@ -17,8 +17,6 @@ Each top-level directory with a `Dockerfile` is a component, published as `ghcr.
 | [music-assistant](music-assistant/README.md)               | music-assistant with a stream base URL override            |
 | [pvc-restore](pvc-restore/README.md)                       | Controller restoring PVCs from volsync backups             |
 | [toolbox](toolbox/README.md)                               | Debugging toolbox image                                    |
-| [vault-push-secrets](vault-push-secrets/README.md)         | Exports Vault state to Bitwarden Secrets Manager           |
-| [vault-unseal](vault-unseal/README.md)                     | Unseals Vault on pod start                                 |
 | frigate, wyoming-whisper                                   | Upstream images with local modifications (see Dockerfiles) |
 
 ## Layout
