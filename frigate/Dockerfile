@@ -1,4 +1,4 @@
-ARG FRIGATE_VERSION=0.18.2
+ARG FRIGATE_VERSION=0.18.2@sha256:fd60f99ffd4eb6c42360ed4e14953e270586f239309ab3983e55b2e97ffac09a
 ARG MODEL_SIZE=s
 ARG IMG_SIZE=320
 
@@ -17,7 +17,7 @@ apt-get update
 apt-get install --no-install-recommends -y cmake libgl1
 rm -rf /var/lib/apt/lists/*
 EOF
-COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff /uv /bin/
 COPY extract-coco-labels.py /
 
 RUN <<'EOF'
