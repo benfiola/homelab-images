@@ -6,7 +6,11 @@
   "dependencyDashboardHeader": "This issue lists Renovate updates and detected dependencies. Read the [Dependency Dashboard](https://docs.renovatebot.com/key-concepts/dashboard/) docs to learn more.\n\nEntries under **Detected dependencies** marked `(pinned: ...)` are deliberately held back for this environment and are never updated.",
   "ignoreUnstable": true,
   "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
+  "prBodyNotes": [
+    "{{#if releaseTimestamp}}{{else}}⚠️ No release timestamp is available for this dependency, so `minimumReleaseAge` was **not enforced**. Review the upstream release before merging.{{/if}}"
+  ],
   "customManagers": [
     {
       "customType": "regex",
