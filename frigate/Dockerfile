@@ -17,7 +17,7 @@ apt-get update
 apt-get install --no-install-recommends -y cmake libgl1
 rm -rf /var/lib/apt/lists/*
 EOF
-COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 /uv /bin/
 COPY extract-coco-labels.py /
 
 RUN <<'EOF'
