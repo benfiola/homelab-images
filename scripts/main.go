@@ -22,9 +22,10 @@ const usage = `usage: go run ./scripts <command>
 
 commands:
   plan [-all] [-components a,b]  print the components to release and their versions as json
+  tag                            claim the releases from plan (json on stdin) by pushing their git tags
   build <component> <version>    generate code, compile binaries and package the helm chart
   publish <component> <version>  push the container image and helm chart
-  release <component> <version>  create the git tag and github release`
+  release <component> <version>  create the github release for the tag`
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -47,8 +48,11 @@ func run(args []string) error {
 	}
 
 	command, args := args[0], args[1:]
-	if command == "plan" {
+	switch command {
+	case "plan":
 		return plan(args)
+	case "tag":
+		return tag()
 	}
 
 	if len(args) != 2 {

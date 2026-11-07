@@ -69,8 +69,8 @@ func (v semver) helmVersion() string {
 	return strings.TrimPrefix(v.String(), "v")
 }
 
-// latestRelease returns the newest stable '<component>/v*' tag, or "" if there is none.
-func latestRelease(component string) (string, semver, error) {
+// latestRelease returns the newest stable '<component>/v*' tag (other than exclude), or "" if there is none.
+func latestRelease(component, exclude string) (string, semver, error) {
 	out, err := output("git", "tag", "--list", component+"/v*")
 	if err != nil {
 		return "", semver{}, err
@@ -79,7 +79,7 @@ func latestRelease(component string) (string, semver, error) {
 	var latest semver
 	for line := range strings.SplitSeq(out, "\n") {
 		v, ok := parseSemver(strings.TrimPrefix(line, component+"/"))
-		if !ok || v.prerelease != "" || v.build != "" {
+		if !ok || v.prerelease != "" || v.build != "" || line == exclude {
 			continue
 		}
 		if tag == "" || latest.less(v) {
@@ -133,6 +133,53 @@ func commitsSince(ref string, pathspecs []string) ([]commit, error) {
 	return commits, nil
 }
 
+func currentBranch() string {
+	if branch := os.Getenv("GITHUB_REF_NAME"); branch != "" {
+		return branch
+	}
+	branch, _ := output("git", "branch", "--show-current")
+	return branch
+}
+
+// branchSuffix returns the prerelease kind and build metadata identifying a
+// branch's prereleases. Both are empty for main.
+func branchSuffix(branch string) (kind, build string) {
+	switch branch {
+	case "main":
+		return "", ""
+	case "dev":
+		return "rc", ""
+	}
+	return "alpha", regexp.MustCompile(`[^0-9A-Za-z-]+`).ReplaceAllString(branch, "-")
+}
+
+// latestBranchRelease returns the component's newest prerelease tag for the
+// branch that is an ancestor of HEAD, or "" if there is none.
+func latestBranchRelease(component, branch string) (string, error) {
+	kind, build := branchSuffix(branch)
+	out, err := output("git", "tag", "--merged", "HEAD", "--list", component+"/v*")
+	if err != nil {
+		return "", err
+	}
+	var tag string
+	latest := -1
+	for line := range strings.SplitSeq(out, "\n") {
+		v, ok := parseSemver(strings.TrimPrefix(line, component+"/"))
+		if !ok || v.build != build {
+			continue
+		}
+		prefix, run, _ := strings.Cut(v.prerelease, ".")
+		n, err := strconv.Atoi(run)
+		if prefix != kind || err != nil {
+			continue
+		}
+		if n > latest {
+			tag, latest = line, n
+		}
+	}
+	return tag, nil
+}
+
 // nextVersion computes the version for the commits since the last release.
 // Releases from main are plain versions; other branches get prerelease versions.
 func nextVersion(last semver, hasLast bool, commits []commit) semver {
@@ -152,21 +199,14 @@ func nextVersion(last semver, hasLast bool, commits []commit) semver {
 		next = last.bump(level)
 	}
 
-	branch := os.Getenv("GITHUB_REF_NAME")
-	if branch == "" {
-		branch, _ = output("git", "branch", "--show-current")
-	}
+	branch := currentBranch()
 	run := os.Getenv("GITHUB_RUN_NUMBER")
 	if run == "" {
 		run = "0"
 	}
-	switch branch {
-	case "main":
-	case "dev":
-		next.prerelease = "rc." + run
-	default:
-		next.prerelease = "alpha." + run
-		next.build = regexp.MustCompile(`[^0-9A-Za-z-]+`).ReplaceAllString(branch, "-")
+	if kind, build := branchSuffix(branch); kind != "" {
+		next.prerelease = kind + "." + run
+		next.build = build
 	}
 	return next
 }

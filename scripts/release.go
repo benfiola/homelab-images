@@ -5,12 +5,12 @@ import (
 	"strings"
 )
 
-// release creates the component's git tag and github release.
+// release creates the component's github release for its tag (see tag).
 func release(component, version string) error {
 	v, _ := parseSemver(version)
 	tag := component + "/" + version
 
-	previous, _, err := latestRelease(component)
+	previous, _, err := latestRelease(component, tag)
 	if err != nil {
 		return err
 	}

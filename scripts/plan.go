@@ -36,21 +36,41 @@ func plan(args []string) error {
 		forced[name] = true
 	}
 
+	// branches release what changed since their last release, or since forking from main
+	branch := currentBranch()
+	fork := ""
+	if branch != "main" {
+		if fork, err = output("git", "merge-base", "origin/main", "HEAD"); err != nil {
+			return err
+		}
+	}
+
 	releases := []plannedRelease{}
 	for _, component := range components {
-		tag, last, err := latestRelease(component)
+		tag, last, err := latestRelease(component, "")
 		if err != nil {
 			return err
+		}
+		since := tag
+		if fork != "" {
+			since = fork
+			previous, err := latestBranchRelease(component, branch)
+			if err != nil {
+				return err
+			}
+			if previous != "" {
+				since = previous
+			}
 		}
 		deps, err := listDependencies(component)
 		if err != nil {
 			return err
 		}
-		specs, err := deps.pathspecs(tag)
+		specs, err := deps.pathspecs(since)
 		if err != nil {
 			return err
 		}
-		commits, err := commitsSince(tag, specs)
+		commits, err := commitsSince(since, specs)
 		if err != nil {
 			return err
 		}

@@ -38,7 +38,9 @@ jobs:
           args=()
           if [ "${{ inputs.all }}" = "true" ]; then args+=(-all); fi
           args+=(-components "${{ inputs.components }}")
-          echo "releases=$(go run ./scripts plan "${args[@]}")" >> "$GITHUB_OUTPUT"
+          releases=$(go run ./scripts plan "${args[@]}")
+          go run ./scripts tag <<< "$releases"
+          echo "releases=$releases" >> "$GITHUB_OUTPUT"
 
   release:
     needs: plan
