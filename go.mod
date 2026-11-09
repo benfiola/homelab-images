@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/backube/volsync v0.17.0
-	github.com/cloudflare/cloudflare-go/v7 v7.13.1
+	github.com/cloudflare/cloudflare-go/v7 v7.14.0
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/go-logr/logr v1.4.4
 	github.com/robfig/cron/v3 v3.0.1
