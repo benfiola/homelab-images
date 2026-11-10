@@ -42,8 +42,8 @@
     }
   },
   "mounts": [
-    // to mount your host claude config, add this mount (and drop this comment):
-    // "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/root/.claude,type=bind,consistency=cached",
+    // to use a persistent mount for claude, add this mount (and drop this comment)
+    // "source=homelab-images-claude,target=/root/.claude,type=volume",
     "source=homelab-images-nix-store,target=/nix,type=volume",
     "source=homelab-images-go-caches,target=/go,type=volume"
   ],

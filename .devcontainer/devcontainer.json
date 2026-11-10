@@ -42,7 +42,7 @@
     }
   },
   "mounts": [
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/root/.claude,type=bind,consistency=cached",
+    "source=homelab-images-claude,target=/root/.claude,type=volume",
     "source=homelab-images-nix-store,target=/nix,type=volume",
     "source=homelab-images-go-caches,target=/go,type=volume"
   ],
