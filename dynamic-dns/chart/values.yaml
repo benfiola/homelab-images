@@ -11,3 +11,18 @@ deployment:
   resources: null
 serviceAccount:
   name: ""
+metrics:
+  alerts:
+    enabled: false
+    labels: {}
+    staleAfterSeconds: 3600
+  dashboard:
+    annotations: {}
+    enabled: false
+    labels:
+      grafana_dashboard: "1"
+  podMonitor:
+    enabled: false
+    interval: ""
+    labels: {}
+    scrapeTimeout: ""

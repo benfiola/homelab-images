@@ -397,6 +397,7 @@ func (r *PVCRestoreReconciler) initialize(ctx context.Context, restore *api.PVCR
 
 	if !acquired {
 		logger.Info("waiting for lock")
+		metricLockWaits.Inc()
 		return PhaseResult{Result: controllerruntime.Result{RequeueAfter: IntervalWaitForLock}}
 	}
 
@@ -668,6 +669,17 @@ func (r *PVCRestoreReconciler) finalize(ctx context.Context, restore *api.PVCRes
 	return PhaseResult{NextPhase: PhaseFinished}
 }
 
+func (r *PVCRestoreReconciler) recordFinished(restore *api.PVCRestore) {
+	result := ResultSucceeded
+	if restore.Status.Error != nil {
+		result = ResultFailed
+	}
+	metricRestoresCompleted.WithLabelValues(result).Inc()
+
+	duration := time.Since(restore.CreationTimestamp.Time)
+	metricRestoreDuration.WithLabelValues(result).Observe(duration.Seconds())
+}
+
 func (r *PVCRestoreReconciler) handlePhaseResult(ctx context.Context, restore *api.PVCRestore, result PhaseResult) (controllerruntime.Result, error) {
 	logger := logging.FromContext(ctx)
 
@@ -680,6 +692,9 @@ func (r *PVCRestoreReconciler) handlePhaseResult(ctx context.Context, restore *a
 		if err != nil {
 			logger.Error("failed to transition phase", "from-phase", restore.Status.Phase, "to-phase", result.NextPhase)
 			return controllerruntime.Result{}, err
+		}
+		if result.NextPhase == PhaseFinished {
+			r.recordFinished(restore)
 		}
 	}
 

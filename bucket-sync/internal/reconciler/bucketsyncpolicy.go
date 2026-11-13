@@ -120,6 +120,7 @@ func (r *BucketSyncPolicyReconciler) Reconcile(pctx context.Context, request con
 	}
 
 	if policy.DeletionTimestamp != nil {
+		metricPolicyConsecutiveFailures.DeleteLabelValues(policy.Name)
 		controllerutil.RemoveFinalizer(policy, Finalizer)
 		err = r.Update(ctx, policy)
 		if err != nil {
@@ -210,6 +211,12 @@ func (r *BucketSyncPolicyReconciler) Reconcile(pctx context.Context, request con
 	if err := r.cleanupOldBucketSyncs(ctx, policy); err != nil {
 		logger.Error("failed to cleanup old bucket syncs", "error", err)
 	}
+
+	trigger := TriggerSchedule
+	if manualTrigger {
+		trigger = TriggerManual
+	}
+	metricPolicySyncsTriggered.WithLabelValues(trigger).Inc()
 
 	policy.Status.LastSyncTime = &metav1.Time{Time: now}
 	policy.Status.NextSyncTime = &metav1.Time{Time: schedule.Next(now)}

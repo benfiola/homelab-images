@@ -1,0 +1,46 @@
+{{- if .Values.metrics.alerts.enabled }}
+{{- $sel := printf "namespace=%q, pod=~%q" .Release.Namespace (printf "%s-.*" (include "dynamic-dns.name" .)) }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "dynamic-dns.name" . }}
+  {{- with .Values.metrics.alerts.labels }}
+  labels: {{ toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: {{ include "dynamic-dns.name" . }}
+      rules:
+        - alert: DynamicDNSSyncFailing
+          expr: sum(increase(dynamic_dns_syncs_total{ {{ $sel }}, result="failure" }[30m])) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: dynamic-dns syncs are failing.
+            description: dynamic-dns has recorded sync failures continuously for 15 minutes. Check the logs and the dynamic_dns_sync_errors_total stage.
+        - alert: DynamicDNSSyncStale
+          expr: time() - max(dynamic_dns_last_successful_sync_timestamp_seconds{ {{ $sel }} }) > {{ int .Values.metrics.alerts.staleAfterSeconds }}
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: dynamic-dns has not synced successfully for a while.
+            description: No fully successful sync in over {{ int .Values.metrics.alerts.staleAfterSeconds }} seconds. DNS records may be out of date.
+        - alert: DynamicDNSDown
+          expr: max(up{ {{ $sel }} }) == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: dynamic-dns metrics target is down.
+            description: Prometheus has been unable to scrape dynamic-dns pod {{`{{ $labels.pod }}`}} for 5 minutes.
+        - alert: DynamicDNSCrashLooping
+          expr: changes(process_start_time_seconds{ {{ $sel }} }[30m]) > 2
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: dynamic-dns is restarting repeatedly.
+            description: dynamic-dns pod {{`{{ $labels.pod }}`}} has restarted more than twice in 30 minutes.
+{{- end }}

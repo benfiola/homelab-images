@@ -34,6 +34,7 @@ func (r *LockCleanupReconciler) Register(manager controllerruntime.Manager) erro
 func (r *LockCleanupReconciler) deleteLock(ctx context.Context, cm *corev1.ConfigMap, reason string) (controllerruntime.Result, error) {
 	logger := logging.FromContext(ctx)
 	logger.Info("deleting stale lock", "reason", reason)
+	metricStaleLocksDeleted.WithLabelValues(reason).Inc()
 
 	err := r.Client.Delete(ctx, cm)
 	if err != nil {

@@ -7,6 +7,7 @@ require (
 	github.com/cloudflare/cloudflare-go/v7 v7.14.0
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/go-logr/logr v1.4.4
+	github.com/prometheus/client_golang v1.25.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/urfave/cli/v3 v3.14.0
 	k8s.io/api v0.37.2
@@ -45,7 +46,6 @@ require (
 	github.com/onsi/ginkgo/v2 v2.33.0 // indirect
 	github.com/onsi/gomega v1.44.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.72.1 // indirect
 	github.com/prometheus/procfs v0.23.0 // indirect

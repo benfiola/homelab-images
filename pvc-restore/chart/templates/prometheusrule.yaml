@@ -1,0 +1,54 @@
+{{- if .Values.metrics.alerts.enabled }}
+{{- $sel := printf "namespace=%q, pod=~%q" .Release.Namespace (printf "%s-.*" (include "pvc-restore.name" .)) }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "pvc-restore.name" . }}
+  {{- with .Values.metrics.alerts.labels }}
+  labels: {{ toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: {{ include "pvc-restore.name" . }}
+      rules:
+        - alert: PVCRestoreFailed
+          expr: sum(increase(pvc_restore_restores_completed_total{ {{ $sel }}, result="failed" }[1h])) > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: A pvc restore failed.
+            description: At least one pvc restore failed in the last hour.
+        - alert: PVCRestoreStaleLocks
+          expr: sum(increase(pvc_restore_stale_locks_deleted_total{ {{ $sel }} }[1h])) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: Stale pvc restore locks were cleaned up.
+            description: Stale locks were deleted in the last hour, which suggests a restore was interrupted or timed out.
+        - alert: PVCRestoreReconcileErrors
+          expr: sum by (controller) (rate(controller_runtime_reconcile_errors_total{ {{ $sel }} }[10m])) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: pvc-restore reconciles are failing.
+            description: The {{`{{ $labels.controller }}`}} controller has been returning reconcile errors for 15 minutes.
+        - alert: PVCRestoreDown
+          expr: max(up{ {{ $sel }} }) == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: pvc-restore metrics target is down.
+            description: Prometheus has been unable to scrape pvc-restore pod {{`{{ $labels.pod }}`}} for 5 minutes.
+        - alert: PVCRestoreCrashLooping
+          expr: changes(process_start_time_seconds{ {{ $sel }} }[30m]) > 2
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: pvc-restore is restarting repeatedly.
+            description: pvc-restore pod {{`{{ $labels.pod }}`}} has restarted more than twice in 30 minutes.
+{{- end }}

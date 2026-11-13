@@ -1,0 +1,62 @@
+{{- if .Values.metrics.alerts.enabled }}
+{{- $sel := printf "namespace=%q, pod=~%q" .Release.Namespace (printf "%s-.*" (include "bucket-sync.name" .)) }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "bucket-sync.name" . }}
+  {{- with .Values.metrics.alerts.labels }}
+  labels: {{ toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: {{ include "bucket-sync.name" . }}
+      rules:
+        - alert: BucketSyncFailed
+          expr: sum(increase(bucket_sync_syncs_completed_total{ {{ $sel }}, result="failed" }[1h])) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: A bucket sync failed.
+            description: At least one bucket sync failed in the last hour.
+        - alert: BucketSyncRepeatedlyFailing
+          expr: max by (policy) (bucket_sync_policy_consecutive_failures{ {{ $sel }} }) >= {{ int .Values.metrics.alerts.consecutiveFailureThreshold }}
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: A bucket sync policy is repeatedly failing.
+            description: Policy "{{`{{ $labels.policy }}`}}" has failed {{`{{ $value }}`}} syncs in a row (threshold {{ int .Values.metrics.alerts.consecutiveFailureThreshold }}).
+        - alert: BucketSyncStaleLocks
+          expr: sum(increase(bucket_sync_stale_locks_deleted_total{ {{ $sel }} }[1h])) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: Stale bucket sync locks were cleaned up.
+            description: Stale locks were deleted in the last hour, which suggests a sync was interrupted or timed out.
+        - alert: BucketSyncReconcileErrors
+          expr: sum by (controller) (rate(controller_runtime_reconcile_errors_total{ {{ $sel }} }[10m])) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: bucket-sync reconciles are failing.
+            description: The {{`{{ $labels.controller }}`}} controller has been returning reconcile errors for 15 minutes.
+        - alert: BucketSyncDown
+          expr: max(up{ {{ $sel }} }) == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: bucket-sync metrics target is down.
+            description: Prometheus has been unable to scrape bucket-sync pod {{`{{ $labels.pod }}`}} for 5 minutes.
+        - alert: BucketSyncCrashLooping
+          expr: changes(process_start_time_seconds{ {{ $sel }} }[30m]) > 2
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: bucket-sync is restarting repeatedly.
+            description: bucket-sync pod {{`{{ $labels.pod }}`}} has restarted more than twice in 30 minutes.
+{{- end }}

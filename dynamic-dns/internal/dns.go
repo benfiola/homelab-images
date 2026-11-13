@@ -28,6 +28,7 @@ type Opts struct {
 	CloudflareZones    []Zone
 	Continuous         *bool
 	Interval           time.Duration
+	MetricsAddress     string
 }
 
 type Client struct {
@@ -35,6 +36,7 @@ type Client struct {
 	CloudflareZones []Zone
 	Continuous      bool
 	Interval        time.Duration
+	MetricsAddress  string
 }
 
 func New(opts *Opts) (*Client, error) {
@@ -54,11 +56,17 @@ func New(opts *Opts) (*Client, error) {
 		interval = 10 * time.Minute
 	}
 
+	metricsAddress := opts.MetricsAddress
+	if metricsAddress == "" {
+		metricsAddress = ":8080"
+	}
+
 	client := &Client{
 		Cloudflare:      cf,
 		Continuous:      continuous,
 		Interval:        interval,
 		CloudflareZones: opts.CloudflareZones,
+		MetricsAddress:  metricsAddress,
 	}
 
 	return client, nil
@@ -134,19 +142,23 @@ func (c *Client) updateDnsRecord(ctx context.Context, zoneID string, recordID st
 	return nil
 }
 
-func (c *Client) Sync(ctx context.Context) error {
+func (c *Client) Sync(ctx context.Context) (lastError error) {
 	logger := logging.FromContext(ctx)
+
+	start := time.Now()
+	defer func() { recordSync(start, lastError) }()
 
 	ip, err := c.getPublicIp(ctx)
 	if err != nil {
+		metricSyncErrors.WithLabelValues(StagePublicIP).Inc()
 		logger.Error("failed to get public ip address", "error", err)
 		return err
 	}
 
-	var lastError error
 	for _, zone := range c.CloudflareZones {
 		cfZone, err := c.findZone(ctx, zone.Name)
 		if err != nil {
+			metricSyncErrors.WithLabelValues(StageFindZone).Inc()
 			logger.Error("failed to find zone", "name", zone.Name, "error", err)
 			lastError = err
 			continue
@@ -154,6 +166,7 @@ func (c *Client) Sync(ctx context.Context) error {
 		for _, domain := range zone.Domains {
 			cfRecord, err := c.findDnsRecord(ctx, cfZone.ID, domain)
 			if err != nil {
+				metricSyncErrors.WithLabelValues(StageFindRecord).Inc()
 				logger.Error("failed to find dns record", "zone", zone.Name, "domain", domain, "error", err)
 				lastError = err
 				continue
@@ -166,10 +179,13 @@ func (c *Client) Sync(ctx context.Context) error {
 
 			err = c.updateDnsRecord(ctx, cfZone.ID, cfRecord.ID, ip)
 			if err != nil {
+				metricSyncErrors.WithLabelValues(StageUpdateRecord).Inc()
 				logger.Error("failed to update dns record", "zone", zone.Name, "domain", domain, "error", err)
 				lastError = err
 				continue
 			}
+
+			metricRecordUpdates.Inc()
 		}
 	}
 
@@ -182,6 +198,14 @@ func (c *Client) Run(pctx context.Context) error {
 
 	logger := logging.FromContext(ctx)
 	logger.Info("starting dynamic dns client")
+
+	if c.Continuous {
+		err := serveMetrics(ctx, c.MetricsAddress)
+		if err != nil {
+			logger.Error("failed to start metrics server", "error", err)
+			return err
+		}
+	}
 
 	err := c.Sync(ctx)
 	if err != nil {
@@ -218,7 +242,6 @@ func (c *Client) Run(pctx context.Context) error {
 			err := c.Sync(ctx)
 			if err != nil {
 				logger.Error("sync failed", "sync-number", syncCount, "error", err)
-				return err
 			}
 		case <-ctx.Done():
 			logger.Info("dynamic dns shutdown")

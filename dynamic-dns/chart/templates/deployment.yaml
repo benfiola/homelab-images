@@ -44,6 +44,9 @@ spec:
             periodSeconds: 30
             failureThreshold: 3
           name: client
+          ports:
+            - name: metrics
+              containerPort: 8080
           readinessProbe:
             exec:
               command:

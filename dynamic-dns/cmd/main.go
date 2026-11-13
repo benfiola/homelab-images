@@ -33,6 +33,10 @@ func main() {
 					Name:    "interval",
 					Sources: cli.EnvVars("INTERVAL"),
 				},
+				&cli.StringFlag{
+					Name:    "metrics-address",
+					Sources: cli.EnvVars("METRICS_ADDRESS"),
+				},
 			},
 			Action: func(ctx context.Context, c *cli.Command) error {
 				cloudflareZones := []internal.Zone{}
@@ -47,6 +51,7 @@ func main() {
 					CloudflareZones:    cloudflareZones,
 					Continuous:         cliutil.BoolPtr(c, "continuous"),
 					Interval:           c.Duration("interval"),
+					MetricsAddress:     c.String("metrics-address"),
 				})
 				if err != nil {
 					return err

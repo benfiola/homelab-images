@@ -104,6 +104,8 @@ func (r *PersistentVolumeClaimReconciler) Reconcile(pctx context.Context, reques
 	if err != nil {
 		logger.Error("failed to create pvc restore resource", "pvc-restore", GetNSNameFrom(restore), "error", err)
 		r.Recorder.Event(pvc, corev1.EventTypeWarning, "PVCRestoreCreationFailed", fmt.Sprintf("failed to create pvc restore resource from pvc: %s", err.Error()))
+	} else {
+		metricRestoresRequested.Inc()
 	}
 
 	return controllerruntime.Result{}, nil

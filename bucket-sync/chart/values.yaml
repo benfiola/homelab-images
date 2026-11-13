@@ -3,3 +3,18 @@ deployment:
     tag: ""
   replicas: 1
   resources: null
+metrics:
+  alerts:
+    enabled: false
+    labels: {}
+    consecutiveFailureThreshold: 3
+  dashboard:
+    annotations: {}
+    enabled: false
+    labels:
+      grafana_dashboard: "1"
+  podMonitor:
+    enabled: false
+    interval: ""
+    labels: {}
+    scrapeTimeout: ""

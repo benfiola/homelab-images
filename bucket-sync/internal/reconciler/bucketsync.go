@@ -242,6 +242,7 @@ func (r *BucketSyncReconciler) initialize(ctx context.Context, sync *api.BucketS
 
 	if !acquired {
 		logger.Info("waiting for lock")
+		metricLockWaits.Inc()
 		return PhaseResult{Result: controllerruntime.Result{RequeueAfter: IntervalWaitForLock}}
 	}
 
@@ -360,6 +361,32 @@ func (r *BucketSyncReconciler) finalize(ctx context.Context, sync *api.BucketSyn
 	return PhaseResult{NextPhase: api.BucketSyncPhaseFinished}
 }
 
+func (r *BucketSyncReconciler) recordFinished(sync *api.BucketSync) {
+	result := ResultSucceeded
+	if sync.Status.Error != nil {
+		result = ResultFailed
+	}
+	policy := ""
+	if sync.Spec.Policy != nil {
+		policy = *sync.Spec.Policy
+	}
+	metricSyncsCompleted.WithLabelValues(result, policy).Inc()
+
+	if policy != "" {
+		consecutive := metricPolicyConsecutiveFailures.WithLabelValues(policy)
+		if result == ResultFailed {
+			consecutive.Inc()
+		} else {
+			consecutive.Set(0)
+		}
+	}
+
+	if sync.Status.StartTime != nil && sync.Status.FinishTime != nil {
+		duration := sync.Status.FinishTime.Sub(sync.Status.StartTime.Time)
+		metricSyncDuration.WithLabelValues(result).Observe(duration.Seconds())
+	}
+}
+
 func (r *BucketSyncReconciler) handlePhaseResult(ctx context.Context, sync *api.BucketSync, result PhaseResult) (controllerruntime.Result, error) {
 	logger := logging.FromContext(ctx)
 
@@ -372,6 +399,9 @@ func (r *BucketSyncReconciler) handlePhaseResult(ctx context.Context, sync *api.
 		if err != nil {
 			logger.Error("failed to transition phase", "from-phase", sync.Status.Phase, "to-phase", result.NextPhase)
 			return controllerruntime.Result{}, err
+		}
+		if result.NextPhase == api.BucketSyncPhaseFinished {
+			r.recordFinished(sync)
 		}
 	}
 
