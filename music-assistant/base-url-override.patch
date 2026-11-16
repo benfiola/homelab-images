@@ -1,6 +1,6 @@
 --- a/music_assistant/controllers/streams/controller.py
 +++ b/music_assistant/controllers/streams/controller.py
-@@ -140,6 +140,8 @@
+@@ -145,6 +145,8 @@
  
  isfile = wrap(os.path.isfile)
  
@@ -9,7 +9,7 @@
  
  def _volume_normalization_preference_options() -> list[ConfigValueOption]:
      """Return the normalization modes that can be picked as a preference."""
-@@ -2365,7 +2367,10 @@
+@@ -2374,7 +2376,10 @@
          )
          # the single address players are handed, taken from the top of the ranked list
          self.publish_ip = self._publish_addresses[0]
@@ -19,5 +19,5 @@
 +        )
 +        self.logger.info("Streams base URL: %s", self._base_url)
  
- 
- def _same_ip_family(ip: str, other_ip: str) -> bool:
+     async def _handle_info_request(self, request: web.Request) -> web.Response:
+         """Answer a reachability probe with this server's id."""

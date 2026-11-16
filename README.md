@@ -9,6 +9,7 @@ Each top-level directory with a `Dockerfile` is a component, published as `ghcr.
 | Component                                                  | Description                                                |
 | ---------------------------------------------------------- | ---------------------------------------------------------- |
 | [bucket-sync](bucket-sync/README.md)                       | Controller for scheduled rclone bucket syncs               |
+| [cilium](cilium/README.md)                                 | cilium-agent with a temporary upstream patch               |
 | [dynamic-dns](dynamic-dns/README.md)                       | Keeps Cloudflare DNS records in sync with a dynamic IP     |
 | [home-assistant](home-assistant/README.md)                 | home-assistant with the Frigate integration                |
 | [linstor-provision-disk](linstor-provision-disk/README.md) | Init container that resets LINSTOR satellite storage       |

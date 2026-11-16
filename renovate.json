@@ -81,6 +81,19 @@
       "allowedVersions": "/^$/"
     },
     {
+      "description": "DISABLED: the cilium image refs are copied from upstream by hand (see cilium/README.md); only CILIUM_VERSION is tracked.",
+      "matchFileNames": ["cilium/Dockerfile"],
+      "matchManagers": ["dockerfile"],
+      "enabled": false
+    },
+    {
+      "description": "PR NOTE: the cilium image is a temporary patched build.",
+      "matchDepNames": ["cilium/cilium"],
+      "prBodyNotes": [
+        "⚠️ `cilium/` carries a patch for cilium/cilium#48031. If this is 1.21.0 or later, delete the component (and its README row). Otherwise re-sync the builder/runtime/envoy image refs in `cilium/Dockerfile` from upstream's `images/cilium/Dockerfile` at this tag, and confirm the patch still applies."
+      ]
+    },
+    {
       "description": "PR NOTE: local patches are rebased against a specific home-assistant release.",
       "matchDepNames": ["ghcr.io/home-assistant/home-assistant"],
       "prBodyNotes": [
