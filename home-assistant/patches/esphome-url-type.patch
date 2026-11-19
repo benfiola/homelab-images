@@ -1,5 +1,5 @@
 diff --git a/homeassistant/components/esphome/assist_satellite.py b/homeassistant/components/esphome/assist_satellite.py
-index 0182cacf9cf..466c955d56f 100644
+index 03f1c56..0171275 100644
 --- a/homeassistant/components/esphome/assist_satellite.py
 +++ b/homeassistant/components/esphome/assist_satellite.py
 @@ -37,7 +37,6 @@ from homeassistant.components.intent import (
@@ -10,7 +10,7 @@ index 0182cacf9cf..466c955d56f 100644
  from homeassistant.const import Platform
  from homeassistant.core import HomeAssistant, callback
  from homeassistant.helpers import entity_registry as er
-@@ -51,6 +50,7 @@ from .entity import EsphomeAssistEntity, convert_api_error_ha_error
+@@ -56,6 +55,7 @@ from .entity import EsphomeAssistEntity, convert_api_error_ha_error
  from .entry_data import ESPHomeConfigEntry
  from .enum_mapper import EsphomeEnumMapper
  from .ffmpeg_proxy import async_create_proxy_url
@@ -18,7 +18,7 @@ index 0182cacf9cf..466c955d56f 100644
  from .wav_parser import stream_wav
  
  PARALLEL_UPDATES = 0
-@@ -395,7 +395,9 @@ class EsphomeAssistSatellite(
+@@ -400,7 +400,9 @@ class EsphomeAssistSatellite(
              assert event.data is not None
              if tts_output := event.data["tts_output"]:
                  path = tts_output["url"]
@@ -29,7 +29,7 @@ index 0182cacf9cf..466c955d56f 100644
                  data_to_send = {"url": url}
  
                  assert self._entry_data.device_info is not None
-@@ -432,7 +434,9 @@ class EsphomeAssistSatellite(
+@@ -437,7 +439,9 @@ class EsphomeAssistSatellite(
              assert event.data is not None
              if tts_output := event.data.get("tts_output"):
                  path = tts_output["url"]
@@ -40,7 +40,7 @@ index 0182cacf9cf..466c955d56f 100644
                  data_to_send = {"url": url}
          elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_RUN_END:
              if self._tts_streaming_task is None:
-@@ -503,13 +507,17 @@ class EsphomeAssistSatellite(
+@@ -508,13 +512,17 @@ class EsphomeAssistSatellite(
                  )
  
                  if not is_media_tts:
@@ -63,10 +63,10 @@ index 0182cacf9cf..466c955d56f 100644
  
          await self.cli.send_voice_assistant_announcement_await_response(
 diff --git a/homeassistant/components/esphome/config_flow.py b/homeassistant/components/esphome/config_flow.py
-index b3d8a1378b4..f10d61eb329 100644
+index d32ca29..65e279a 100644
 --- a/homeassistant/components/esphome/config_flow.py
 +++ b/homeassistant/components/esphome/config_flow.py
-@@ -58,11 +58,16 @@ from .const import (
+@@ -60,11 +60,16 @@ from .const import (
      CONF_DEVICE_NAME,
      CONF_NOISE_PSK,
      CONF_SUBSCRIBE_LOGS,
@@ -83,7 +83,7 @@ index b3d8a1378b4..f10d61eb329 100644
  )
  from .dashboard import async_get_or_create_dashboard_manager, async_set_dashboard_info
  from .encryption_key_storage import async_get_encryption_key_storage
-@@ -1014,6 +1019,16 @@ class OptionsFlowHandler(OptionsFlowWithReload):
+@@ -1029,6 +1034,16 @@ class OptionsFlowHandler(OptionsFlowWithReload):
                  CONF_SUBSCRIBE_LOGS,
                  default=options.get(CONF_SUBSCRIBE_LOGS, False),
              ): bool,
@@ -101,10 +101,10 @@ index b3d8a1378b4..f10d61eb329 100644
          if _entry_has_bluetooth_scanner(self.config_entry):
              schema[
 diff --git a/homeassistant/components/esphome/const.py b/homeassistant/components/esphome/const.py
-index 508065b091c..c4cca67beab 100644
+index a7c3ebf..1a7a61b 100644
 --- a/homeassistant/components/esphome/const.py
 +++ b/homeassistant/components/esphome/const.py
-@@ -19,12 +19,17 @@ ESPHOME_DATA: HassKey[DomainData] = HassKey(DOMAIN)
+@@ -21,12 +21,17 @@ ESPHOME_DATA: HassKey[DomainData] = HassKey(DOMAIN)
  
  CONF_ALLOW_SERVICE_CALLS = "allow_service_calls"
  CONF_SUBSCRIBE_LOGS = "subscribe_logs"
@@ -123,19 +123,18 @@ index 508065b091c..c4cca67beab 100644
  DEFAULT_BLUETOOTH_SCANNING_MODE = BluetoothScanningMode.AUTO.value
  
 diff --git a/homeassistant/components/esphome/media_player.py b/homeassistant/components/esphome/media_player.py
-index 1dd19204f26..8b18392d5dc 100644
+index a972de8..62b1469 100644
 --- a/homeassistant/components/esphome/media_player.py
 +++ b/homeassistant/components/esphome/media_player.py
-@@ -26,8 +26,7 @@ from homeassistant.components.media_player import (
-     MediaPlayerEntityFeature,
+@@ -29,7 +29,6 @@ from homeassistant.components.media_player import (
      MediaPlayerState,
      MediaType,
      RepeatMode,
 -    async_process_play_media_url,
  )
  from homeassistant.core import callback
- 
-@@ -39,6 +38,7 @@ from .entity import (
+ from homeassistant.exceptions import ServiceValidationError
+@@ -44,6 +43,7 @@ from .entity import (
  )
  from .enum_mapper import EsphomeEnumMapper
  from .ffmpeg_proxy import async_create_proxy_url
@@ -143,7 +142,7 @@ index 1dd19204f26..8b18392d5dc 100644
  
  PARALLEL_UPDATES = 0
  
-@@ -140,7 +140,9 @@ class EsphomeMediaPlayer(
+@@ -159,7 +159,9 @@ class EsphomeMediaPlayer(
              )
              media_id = sourced_media.url
  
@@ -153,8 +152,8 @@ index 1dd19204f26..8b18392d5dc 100644
 +        )
          announcement = kwargs.get(ATTR_MEDIA_ANNOUNCE)
          bypass_proxy = kwargs.get(ATTR_MEDIA_EXTRA, {}).get(ATTR_BYPASS_PROXY)
-         supported_formats: list[MediaPlayerSupportedFormat] | None = (
-@@ -230,7 +232,9 @@ class EsphomeMediaPlayer(
+         supported_formats = self._entry_data.media_player_formats.get(self)
+@@ -252,7 +254,9 @@ class EsphomeMediaPlayer(
          )
  
          # Resolve URL
@@ -166,10 +165,10 @@ index 1dd19204f26..8b18392d5dc 100644
      @override
      async def async_browse_media(
 diff --git a/homeassistant/components/esphome/strings.json b/homeassistant/components/esphome/strings.json
-index 0d0c6f6dbb4..0b0435bbe24 100644
+index e88f9c9..d701e5c 100644
 --- a/homeassistant/components/esphome/strings.json
 +++ b/homeassistant/components/esphome/strings.json
-@@ -210,17 +210,26 @@
+@@ -214,17 +214,26 @@
          "data": {
            "allow_service_calls": "Allow the device to perform Home Assistant actions.",
            "bluetooth_scanning_mode": "Bluetooth scanning mode",
@@ -200,7 +199,7 @@ index 0d0c6f6dbb4..0b0435bbe24 100644
          "active": "Active (uses more device battery, fastest updates)",
 diff --git a/homeassistant/components/esphome/url.py b/homeassistant/components/esphome/url.py
 new file mode 100644
-index 00000000000..77bbbce3145
+index 0000000..77bbbce
 --- /dev/null
 +++ b/homeassistant/components/esphome/url.py
 @@ -0,0 +1,21 @@
