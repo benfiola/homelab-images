@@ -1,9 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", ":semanticCommits", "docker:pinDigests"],
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true,
+    "header": "This issue lists Renovate updates and detected dependencies. Read the [Dependency Dashboard](https://docs.renovatebot.com/key-concepts/dashboard/) docs to learn more.\n\nEntries under **Detected dependencies** marked `(pinned: ...)` are deliberately held back for this environment and are never updated."
+  },
   "dependencyDashboardApproval": false,
-  "dependencyDashboardHeader": "This issue lists Renovate updates and detected dependencies. Read the [Dependency Dashboard](https://docs.renovatebot.com/key-concepts/dashboard/) docs to learn more.\n\nEntries under **Detected dependencies** marked `(pinned: ...)` are deliberately held back for this environment and are never updated.",
   "ignoreUnstable": true,
   "minimumReleaseAge": "3 days",
   "minimumReleaseAgeBehaviour": "timestamp-optional",
