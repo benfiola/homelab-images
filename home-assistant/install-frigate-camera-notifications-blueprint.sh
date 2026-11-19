@@ -2,7 +2,7 @@
 set -e
 
 # renovate: datasource=git-refs depName=https://github.com/SgtBatten/HA_blueprints branch=main
-VERSION="075e79a3ac0454aa6c0ff14472fadf5407d33722"
+VERSION="4078a909511b707efdcef698735e37c9a4d119d9"
 DEST="${ADDONS_DIR}/blueprints/automation"
 
 apk add --no-cache curl
