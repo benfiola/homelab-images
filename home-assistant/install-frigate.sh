@@ -2,7 +2,7 @@
 set -e
 
 # renovate: datasource=github-releases depName=blakeblackshear/frigate-hass-integration extractVersion=^v(?<version>.+)$
-VERSION="5.15.6"
+VERSION="5.15.7"
 DEST="${ADDONS_DIR}/custom_components/frigate"
 
 apk add --no-cache curl
