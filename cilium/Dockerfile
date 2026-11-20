@@ -2,7 +2,7 @@
 # images/cilium/Dockerfile upstream (amd64 only). The three image refs below are
 # copied from that file at CILIUM_VERSION and must be re-synced when it changes.
 # renovate: datasource=github-releases depName=cilium/cilium
-ARG CILIUM_VERSION=v1.20.4
+ARG CILIUM_VERSION=v1.20.5
 ARG CILIUM_BUILDER_IMAGE=quay.io/cilium/cilium-builder:66897bc214ae487c12578033551e0404996a88e7@sha256:3e560a0977aecc72f1dca43d0e8e101fbc5415e22a638dd61ebf29f44f43920f
 ARG CILIUM_RUNTIME_IMAGE=quay.io/cilium/cilium-runtime:d3ef3d6b993da541b58cb69b832f432d8d753059@sha256:577a057256325f139db1acb598d73c0cf7cd081f4bcc8ecb942c271a8ca32dbd
 ARG CILIUM_ENVOY_IMAGE=quay.io/cilium/cilium-envoy:v1.39.5-1792733054-8c73b2816bc8239e27f1fd53b271884688137459@sha256:547ab45f6092f681d9f54f3be9fa8fb1e705c9c5dc2df388efe3a52aa6965629
