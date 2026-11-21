@@ -9,7 +9,7 @@
  
  def _volume_normalization_preference_options() -> list[ConfigValueOption]:
      """Return the normalization modes that can be picked as a preference."""
-@@ -2374,7 +2376,10 @@
+@@ -2423,7 +2425,10 @@
          )
          # the single address players are handed, taken from the top of the ranked list
          self.publish_ip = self._publish_addresses[0]
