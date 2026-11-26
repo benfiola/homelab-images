@@ -1,6 +1,6 @@
 FROM ghcr.io/benfiola/homelab-images/lvm2:1.1.3@sha256:c308eb52180088c2a7d9f0986eb94dab4b33499b3a497949be7d140adf9a652b AS lvm2
 
-FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+FROM debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
 
 ARG TARGETARCH
 
